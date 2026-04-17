@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import axios from 'axios';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import { BadRequestException, Injectable } from '@nestjs/common';
