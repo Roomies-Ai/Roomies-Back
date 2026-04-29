@@ -14,17 +14,25 @@ import { Task } from './models/task.entity';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
-        entities: [User, Task],
-        synchronize: true, // Note: Set to false in production
-      }),
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        return {
+          type: 'postgres',
+          url: databaseUrl,
+          host: !databaseUrl ? configService.get<string>('DB_HOST') : undefined,
+          port: !databaseUrl ? configService.get<number>('DB_PORT') : undefined,
+          username: !databaseUrl ? configService.get<string>('DB_USERNAME') : undefined,
+          password: !databaseUrl ? configService.get<string>('DB_PASSWORD') : undefined,
+          database: !databaseUrl ? configService.get<string>('DB_NAME') : undefined,
+          entities: [User, Task],
+          synchronize: true, // Note: Set to false in production
+          ssl: {
+            rejectUnauthorized: false, // Required for Supabase in many environments
+          },
+        };
+      },
     }),
+
     AuthModule,
     TasksModule,
   ],
