@@ -1,40 +1,33 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { TaskStatus } from 'src/helpers/consts';
 
-export interface ITask extends Document {
-    title: string;
-    description: string;
-    status: string;
-    dueDate: Date;
-    assignee: string;
+@Entity('tasks')
+export class Task {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column()
+  title: string;
+
+  @Column('text')
+  description: string;
+
+  @Column({
+    type: 'enum',
+    enum: TaskStatus,
+    default: TaskStatus.PENDING,
+  })
+  status: TaskStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  dueDate: Date;
+
+  @Column({ nullable: true })
+  assignee: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
-
-const taskSchema = new Schema<ITask>({
-    title: {
-        type: String,
-        required: true,
-    },
-    description: {
-        type: String,
-        required: true,
-    },
-    status: {
-        type: String,
-        required: true,
-        enum: ['pending', 'in-progress', 'completed', 'overdue'],
-        default: 'pending'
-    },
-    dueDate: {
-        type: Date,
-        required: false
-    },
-    assignee: {
-        type: String,
-        required: false,
-    }
-}, {
-    timestamps: true
-});
-
-const taskModel = mongoose.model<ITask>('Task', taskSchema);
-
-export default taskModel;

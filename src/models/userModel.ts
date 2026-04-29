@@ -1,52 +1,28 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-export interface IUser extends Document {
-    username: string;
-    email: string;
-    password: string;
-    profilePicture?: string;
-    bio?: string;
-    refreshTokens: string[];
-    suggestedBooks: string[];
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column()
+  username: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string;
+
+  @Column({ nullable: true })
+  profilePicture: string;
+
+  @Column('text', { array: true, default: '{}' })
+  refreshTokens: string[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
-
-const userSchema = new Schema<IUser>({
-    username: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    email: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    password: {
-        type: String,
-        required: true
-    },
-    profilePicture: {
-        type: String,
-        required: false
-    },
-    bio: {
-        type: String,
-        required: false,
-        default: '',
-        maxlength: 100
-    },
-    refreshTokens: {
-        type: [String],
-        default: []
-    },
-    suggestedBooks: {
-        type: [String],
-        default: []
-    }
-}, {
-    timestamps: true
-});
-
-const userModel = mongoose.model<IUser>('User', userSchema);
-
-export default userModel;
