@@ -5,8 +5,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
-import { User } from './models/userModel';
-import { Task } from './models/tasksModel';
+import { User } from './models/user.entity';
+import { Task } from './models/task.entity';
 
 @Module({
   imports: [
