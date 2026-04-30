@@ -20,3 +20,41 @@ export const generateTasksPrompt = (household: any) => {
             - points: number (1-10 based on difficulty)
             `;
 };
+
+export const generateFairnessPrompt = (task: any, memberStats: any[]) => {
+  return `
+    You are an AI assistant helping to assign household tasks fairly.
+    Task: "${task.title}" (Type: ${task.taskType?.name || 'General'})
+    Points for this task: ${task.points}
+    
+    Here are the household members and their stats:
+    ${memberStats.map(s => `- ${s.member.username} (ID: ${s.member.id}): Total Points: ${s.totalPoints}, Times done this task type: ${s.timesDoneThisType}, Prefers this task type: ${s.prefersThisType}`).join('\n')}
+    
+    Requirements for fairness:
+    1. Do NOT penalize members for having too many total points. 
+    2. Factor in their preference (if they prefer it, it's a good match).
+    3. Factor in their history (if they've done this exact task type many times, maybe give someone else a turn).
+    
+    Respond in JSON format exactly as an array of objects containing 'userId', 'username', 'reason' (a short explanation why they are recommended), and 'score' (0-100).
+  `;
+};
+
+
+export const generateParseTelegramMessagePrompt = (message: string, household: any) => {
+  const name = household?.name || 'the household';
+  return `
+    You are an AI that extracts household tasks from a free-text message.
+    Message: "${message}"
+    
+    Context: This is for ${name}, a ${household?.houseType?.name || 'home'}.
+    
+    Instructions:
+    1. Extract a list of distinct tasks mentioned or implied in the message.
+    2. Assign a difficulty score (points) from 1 to 10 for each task.
+    3. Return ONLY a valid JSON array of task objects with these fields:
+       - title: string
+       - description: string (brief)
+       - points: number
+       - status: "pending"
+  `;
+};
