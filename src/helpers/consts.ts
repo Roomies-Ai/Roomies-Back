@@ -4,3 +4,13 @@ export enum TaskStatus {
     COMPLETED = 'completed',
     OVERDUE = 'overdue',
 }
+
+export const DEFAULT_TASK_TYPES = [
+    'General',
+    'Cooking',
+    'Cleaning',
+    'Groceries',
+    'Maintenance',
+    'Trash/Recycling',
+    'Laundry',
+];
