@@ -15,6 +15,7 @@ import { UsersModule } from './users/users.module';
 import { HouseholdsModule } from './households/households.module';
 import { StatsModule } from './stats/stats.module';
 import { HouseTypesModule } from './house-types/house-types.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { HouseTypesModule } from './house-types/house-types.module';
     HouseholdsModule,
     StatsModule,
     HouseTypesModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],
