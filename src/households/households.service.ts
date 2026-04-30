@@ -1,0 +1,185 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Household } from '../models/household.entity';
+import { User } from '../models/user.entity';
+import { Pet } from '../models/pet.entity';
+import { TaskType } from '../models/task-type.entity';
+import { DEFAULT_TASK_TYPES } from '../helpers/consts';
+import { promptGemini } from '../helpers/gemini';
+import { generateTasksPrompt } from '../helpers/prompts';
+import { randomBytes } from 'crypto';
+
+@Injectable()
+export class HouseholdsService {
+  constructor(
+    @InjectRepository(Household)
+    private householdsRepository: Repository<Household>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
+    @InjectRepository(Pet)
+    private petsRepository: Repository<Pet>,
+    @InjectRepository(TaskType)
+    private taskTypesRepository: Repository<TaskType>,
+  ) {}
+
+  async create(createData: Partial<Household>): Promise<Household> {
+    const household = this.householdsRepository.create(createData);
+    const savedHousehold = await this.householdsRepository.save(household);
+
+    // Seed default task types
+    const taskTypes = DEFAULT_TASK_TYPES.map(name =>
+      this.taskTypesRepository.create({ name, household: savedHousehold })
+    );
+    await this.taskTypesRepository.save(taskTypes);
+
+    return this.findOne(savedHousehold.id);
+  }
+
+  async findOne(id: string): Promise<Household> {
+    const household = await this.householdsRepository.findOne({
+      where: { id },
+      relations: ['members', 'tasks', 'pets', 'houseType', 'taskTypes'],
+    });
+    if (!household) throw new NotFoundException(`Household #${id} not found`);
+    return household;
+  }
+
+  async findByUserId(userId: string): Promise<Household[]> {
+    return this.householdsRepository.find({
+      where: { members: { id: userId } },
+      relations: ['members', 'tasks', 'pets', 'houseType', 'taskTypes'],
+    });
+  }
+
+  /**
+   * Onboarding: saves questionnaire data to household fields and triggers
+   * AI task generation based on the household's full profile.
+   */
+  async submitOnboarding(id: string, questionnaireData: any): Promise<any> {
+    const household = await this.findOne(id);
+
+    // Apply any top-level questionnaire fields (e.g. houseType, name) onto the household
+    Object.assign(household, questionnaireData);
+    const updatedHousehold = await this.householdsRepository.save(household);
+
+    // Re-fetch with full relations so the AI prompt has complete context
+    const fullHousehold = await this.findOne(updatedHousehold.id);
+
+    // Generate tasks via AI based on the updated household profile
+    const prompt = generateTasksPrompt(fullHousehold);
+    const result = await promptGemini(prompt);
+    const aiTasks = JSON.parse(result.response.text());
+
+    return {
+      message: 'Onboarding complete. AI tasks generated.',
+      household: fullHousehold,
+      suggestedTasks: aiTasks,
+    };
+  }
+
+  /**
+   * Generates a cryptographically secure, unique invite code for a household.
+   */
+  async generateInviteCode(id: string): Promise<Household> {
+    const household = await this.findOne(id);
+
+    let inviteCode: string;
+    do {
+      // 4 random bytes → 8 hex chars, uppercased
+      inviteCode = randomBytes(4).toString('hex').toUpperCase();
+    } while (await this.householdsRepository.findOne({ where: { inviteCode } }));
+
+    household.inviteCode = inviteCode;
+    return this.householdsRepository.save(household);
+  }
+
+  /**
+   * Allows a user to join a household by its invite code.
+   */
+  async joinByInviteCode(userId: string, inviteCode: string): Promise<Household> {
+    const household = await this.householdsRepository.findOne({
+      where: { inviteCode },
+      relations: ['members'],
+    });
+    if (!household) {
+      throw new NotFoundException(`No household found with invite code "${inviteCode}"`);
+    }
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      relations: ['households'],
+    });
+    if (!user) throw new NotFoundException(`User #${userId} not found`);
+
+    const alreadyMember = user.households?.some(h => h.id === household.id);
+    if (alreadyMember) {
+      throw new BadRequestException('User is already a member of this household');
+    }
+
+    user.households = [...(user.households || []), household];
+    await this.usersRepository.save(user);
+
+    return this.findOne(household.id);
+  }
+
+  /**
+   * Removes a user from a specific household.
+   */
+  async removeUser(householdId: string, userId: string): Promise<any> {
+    // Validate household exists first
+    await this.findOne(householdId);
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      relations: ['households'],
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User #${userId} not found`);
+    }
+
+    const isMember = user.households?.some(h => h.id === householdId);
+    if (!isMember) {
+      throw new BadRequestException(`User #${userId} is not a member of Household #${householdId}`);
+    }
+
+    user.households = user.households.filter(h => h.id !== householdId);
+    await this.usersRepository.save(user);
+
+    return { message: `User #${userId} removed from Household #${householdId}` };
+  }
+
+  async addPet(householdId: string, petData: Partial<Pet>): Promise<Pet> {
+    const household = await this.findOne(householdId);
+    const pet = this.petsRepository.create({ ...petData, household });
+    return this.petsRepository.save(pet);
+  }
+
+  async updatePet(householdId: string, petId: string, petData: Partial<Pet>): Promise<Pet> {
+    await this.findOne(householdId); // Validates household exists
+    const pet = await this.petsRepository.findOne({ where: { id: petId, household: { id: householdId } } });
+    if (!pet) throw new NotFoundException(`Pet #${petId} not found in Household #${householdId}`);
+
+    await this.petsRepository.update(petId, petData);
+    return this.petsRepository.findOneBy({ id: petId }) as Promise<Pet>;
+  }
+
+  async removePet(householdId: string, petId: string): Promise<void> {
+    await this.findOne(householdId); // Validates household exists
+    const result = await this.petsRepository.delete({ id: petId, household: { id: householdId } });
+    if (result.affected === 0) {
+      throw new NotFoundException(`Pet #${petId} not found in Household #${householdId}`);
+    }
+  }
+
+  /**
+   * Removes (unlinks) the house type from a household without deleting the HouseType record.
+   */
+  async removeHouseType(householdId: string): Promise<Household> {
+    const household = await this.findOne(householdId);
+    household.houseType = null;
+    await this.householdsRepository.save(household);
+    return this.findOne(householdId);
+  }
+}

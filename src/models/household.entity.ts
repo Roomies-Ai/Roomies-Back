@@ -14,7 +14,7 @@ export class Household {
   name: string;
 
   @ManyToOne(() => HouseType, houseType => houseType.households, { nullable: true, onDelete: 'SET NULL' })
-  houseType: HouseType;
+  houseType: HouseType | null;
 
   @Column({ unique: true, nullable: true })
   inviteCode: string;

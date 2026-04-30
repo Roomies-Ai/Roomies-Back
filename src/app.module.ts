@@ -7,6 +7,14 @@ import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
 import { User } from './models/user.entity';
 import { Task } from './models/task.entity';
+import { Household } from './models/household.entity';
+import { Pet } from './models/pet.entity';
+import { HouseType } from './models/house-type.entity';
+import { TaskType } from './models/task-type.entity';
+import { UsersModule } from './users/users.module';
+import { HouseholdsModule } from './households/households.module';
+import { StatsModule } from './stats/stats.module';
+import { HouseTypesModule } from './house-types/house-types.module';
 
 @Module({
   imports: [
@@ -24,7 +32,7 @@ import { Task } from './models/task.entity';
           username: !databaseUrl ? configService.get<string>('DB_USERNAME') : undefined,
           password: !databaseUrl ? configService.get<string>('DB_PASSWORD') : undefined,
           database: !databaseUrl ? configService.get<string>('DB_NAME') : undefined,
-          entities: [User, Task],
+          entities: [User, Task, Household, Pet, HouseType, TaskType],
           synchronize: true, // Note: Set to false in production
           ssl: {
             rejectUnauthorized: false, // Required for Supabase in many environments
@@ -35,6 +43,10 @@ import { Task } from './models/task.entity';
 
     AuthModule,
     TasksModule,
+    UsersModule,
+    HouseholdsModule,
+    StatsModule,
+    HouseTypesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
