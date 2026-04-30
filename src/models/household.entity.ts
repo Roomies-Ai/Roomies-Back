@@ -13,7 +13,7 @@ export class Household {
   @Column()
   name: string;
 
-  @ManyToOne(() => HouseType, houseType => houseType.households, { nullable: true })
+  @ManyToOne(() => HouseType, houseType => houseType.households, { nullable: true, onDelete: 'SET NULL' })
   houseType: HouseType;
 
   @Column({ unique: true, nullable: true })
