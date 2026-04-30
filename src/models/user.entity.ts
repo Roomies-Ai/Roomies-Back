@@ -1,4 +1,7 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, ManyToMany, JoinTable } from 'typeorm';
+import { Household } from './household.entity';
+import { Task } from './task.entity';
+import { TaskType } from './task-type.entity';
 
 @Entity('users')
 export class User {
@@ -19,6 +22,17 @@ export class User {
 
   @Column('text', { array: true, default: '{}' })
   refreshTokens: string[];
+
+  @ManyToMany(() => Household, household => household.members)
+  @JoinTable()
+  households: Household[];
+
+  @OneToMany(() => Task, task => task.assignee)
+  assignedTasks: Task[];
+
+  @ManyToMany(() => TaskType, taskType => taskType.preferringUsers)
+  @JoinTable()
+  preferredTaskTypes: TaskType[];
 
   @CreateDateColumn()
   createdAt: Date;
