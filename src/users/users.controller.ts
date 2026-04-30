@@ -16,6 +16,7 @@ export class UsersController {
     const allowedUpdates = {
       username: updateData.username,
       profilePicture: updateData.profilePicture,
+      phoneNumber: updateData.phoneNumber,
     };
     // remove undefined
     Object.keys(allowedUpdates).forEach(key => allowedUpdates[key] === undefined && delete allowedUpdates[key]);
