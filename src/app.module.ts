@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
@@ -16,6 +16,7 @@ import { HouseholdsModule } from './households/households.module';
 import { StatsModule } from './stats/stats.module';
 import { HouseTypesModule } from './house-types/house-types.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { AuthMiddleware } from './auth/auth.middleware';
 
 @Module({
   imports: [
@@ -53,5 +54,17 @@ import { TelegramModule } from './telegram/telegram.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(AuthMiddleware)
+      .exclude(
+        { path: 'auth/(.*)', method: RequestMethod.ALL },
+        { path: 'auth', method: RequestMethod.ALL },
+        { path: '/', method: RequestMethod.GET },
+      )
+      .forRoutes('*');
+  }
+}
+
 
