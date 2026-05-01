@@ -17,8 +17,9 @@ export class HouseholdsController {
   }
 
   @Post()
-  create(@Body() createData: Partial<Household>) {
-    return this.householdsService.create(createData);
+  create(@Req() req: any, @Body() createData: Partial<Household>) {
+    const userId = req['user']?.id || req['user']?.userId;
+    return this.householdsService.create(createData, userId);
   }
 
   @Patch(':id/onboarding')
