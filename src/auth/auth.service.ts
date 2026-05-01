@@ -116,7 +116,7 @@ export class AuthService {
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
-      this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
+      return this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
     } catch (err: any) {
       throw new BadRequestException(
         'Internal server error during Google authentication',
@@ -145,7 +145,7 @@ export class AuthService {
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
-      this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
+      return this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
     } catch (err: any) {
       if (err.code === '23505') {
         // PostgreSQL unique violation code
@@ -176,7 +176,7 @@ export class AuthService {
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
-      this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
+      return this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
     } catch (err: any) {
       throw new BadRequestException(err.message);
     }
@@ -256,7 +256,7 @@ export class AuthService {
       user.refreshTokens.push(newRefreshToken);
       await this.userRepository.save(user);
 
-      this.sendAuthResponse(
+      return this.sendAuthResponse(
         res,
         new UserDto(user),
         newAccessToken,
@@ -266,4 +266,4 @@ export class AuthService {
       throw new BadRequestException('Invalid refresh token');
     }
   }
-}
+}
