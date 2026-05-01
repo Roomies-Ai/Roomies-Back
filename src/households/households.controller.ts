@@ -5,7 +5,7 @@ import { Pet } from '../models/pet.entity';
 
 @Controller('households')
 export class HouseholdsController {
-  constructor(private readonly householdsService: HouseholdsService) {}
+  constructor(private readonly householdsService: HouseholdsService) { }
 
   @Get('me')
   findMyHouseholds(@Req() req: any) {
