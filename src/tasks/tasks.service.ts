@@ -58,7 +58,7 @@ export class TasksService {
       const tasks = result.response.text();
       return tasks;
     } catch (error) {
-      console.log(error);
+      console.error(error);
       throw error;
     }
   }
