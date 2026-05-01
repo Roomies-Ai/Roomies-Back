@@ -12,5 +12,6 @@ import { FairnessService } from './fairness.service';
     imports: [TypeOrmModule.forFeature([Task, User, Household])],
     controllers: [TasksController],
     providers: [TasksService, FairnessService],
+    exports: [TasksService],
 })
 export class TasksModule { }
