@@ -36,20 +36,27 @@ export class TelegramService implements OnModuleInit {
       ctx.reply(
         'Welcome to Roomies Bot! 🏠\n\n' +
         'Please link your household first by sending:\n' +
-        '`/link YOUR_HOUSEHOLD_ID`',
+        '`/link YOUR_INVITE_CODE`',
         { parse_mode: 'Markdown' }
       );
     });
 
     // Link household
-    this.bot.command('link', (ctx) => {
+    this.bot.command('link', async (ctx) => {
       const parts = ctx.message.text.split(' ');
       if (parts.length < 2) {
-        return ctx.reply('Usage: /link <household_id>');
+        return ctx.reply('Usage: /link <invite_code>');
       }
-      const householdId = parts[1];
-      this.userStates.set(ctx.from.id, { householdId });
-      ctx.reply(`✅ Linked to Household: ${householdId}`);
+      
+      const inviteCode = parts[1];
+      const household = await this.tasksService.findHouseholdByInviteCode(inviteCode);
+      
+      if (!household) {
+        return ctx.reply(`❌ Could not find a household with Invite Code: ${inviteCode}`);
+      }
+
+      this.userStates.set(ctx.from.id, { householdId: household.id }); // Store the actual UUID for processing
+      ctx.reply(`✅ Linked to Household: *${household.name}*`, { parse_mode: 'Markdown' });
     });
 
     // Handle free text
