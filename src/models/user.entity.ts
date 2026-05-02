@@ -19,6 +19,9 @@ export class User {
 
   @Column({ nullable: true })
   profilePicture: string;
+  
+  @Column({ nullable: true })
+  phoneNumber: string;
 
   @Column('text', { array: true, default: '{}' })
   refreshTokens: string[];
