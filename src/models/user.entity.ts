@@ -24,10 +24,10 @@ export class User {
   phoneNumber: string;
 
   @Column({ unique: true, nullable: true })
-  telegramToken: string;
+  telegramToken!: string;
 
   @Column({ nullable: true })
-  telegramChatId: string;
+  telegramChatId!: string;
 
   @Column('text', { array: true, default: '{}' })
   refreshTokens: string[];
