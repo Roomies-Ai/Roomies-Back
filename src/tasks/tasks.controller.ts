@@ -24,6 +24,11 @@ export class TasksController {
     return this.tasksService.findAll(status, householdId);
   }
 
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateData: Partial<Task>) {
+    return this.tasksService.update(id, updateData);
+  }
+
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body('status') status: TaskStatus) {
     return this.tasksService.updateStatus(id, status);
