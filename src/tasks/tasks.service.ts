@@ -55,11 +55,14 @@ export class TasksService {
     try {
       const prompt = generateTasksPrompt(household);
       const result = await promptGemini(prompt);
-      const tasks = result.response.text();
-      return tasks;
+      const text = result.response.text();
+      
+      // Clean up potential markdown blocks if Gemini returns them
+      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanJson);
     } catch (error) {
-      console.error(error);
-      throw error;
+      console.error('Failed to generate AI tasks:', error);
+      return [];
     }
   }
 
