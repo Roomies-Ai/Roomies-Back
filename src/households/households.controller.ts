@@ -16,6 +16,11 @@ export class HouseholdsController {
     return this.householdsService.findByUserId(userId);
   }
 
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.householdsService.findOne(id);
+  }
+
   @Post()
   create(@Req() req: any, @Body() createData: Partial<Household>) {
     const userId = req['user']?.id || req['user']?.userId;

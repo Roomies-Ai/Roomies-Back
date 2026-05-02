@@ -71,7 +71,7 @@ export class HouseholdsService {
   async findOne(id: string): Promise<Household> {
     const household = await this.householdsRepository.findOne({
       where: { id },
-      relations: ['members', 'tasks', 'pets', 'houseType', 'taskTypes'],
+      relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
     });
     if (!household) throw new NotFoundException(`Household #${id} not found`);
     return household;
@@ -80,7 +80,7 @@ export class HouseholdsService {
   async findByUserId(userId: string): Promise<Household[]> {
     return this.householdsRepository.find({
       where: { members: { id: userId } },
-      relations: ['members', 'tasks', 'pets', 'houseType', 'taskTypes'],
+      relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
     });
   }
 
