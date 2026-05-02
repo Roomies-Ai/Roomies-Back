@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { LoggerService } from '@nestjs/common';
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -24,9 +24,9 @@ const BOLD = '\x1b[1m';
 
 @Injectable()
 export class AppLogger implements LoggerService {
-  private readonly isDev = process.env.NODE_ENV === 'development';
+  private readonly isDev = process.env.NODE_ENV !== 'production';
 
-  constructor(private readonly context?: string) {}
+  constructor(@Optional() private readonly context?: string) {}
 
   log(message: any, ...optionalParams: any[]): void {
     this.emit('log', String(message), this.resolveContext(optionalParams), this.resolveMeta(optionalParams));

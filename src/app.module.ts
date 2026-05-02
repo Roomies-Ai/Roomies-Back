@@ -29,7 +29,7 @@ import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
+      imports: [ConfigModule, LoggerModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
@@ -80,11 +80,7 @@ export class AppModule implements NestModule {
 
     consumer
       .apply(AuthMiddleware)
-      .exclude(
-        'auth/(.*)',
-        'auth',
-        '/'
-      )
+      .exclude('auth/(.*)', 'auth', '/')
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }
