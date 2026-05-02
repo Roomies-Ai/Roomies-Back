@@ -35,10 +35,15 @@ export class TasksService {
     return task;
   }
 
+  async update(id: string, updateData: Partial<Task>): Promise<Task> {
+    const task = await this.findOne(id);
+    Object.assign(task, updateData);
+    const saved = await this.taskRepository.save(task);
+    return saved;
+  }
+
   async updateStatus(id: string, status: TaskStatus): Promise<Task> {
-    // Here we can trigger "Fairness" points in the future if status === COMPLETED
-    await this.taskRepository.update(id, { status });
-    return this.findOne(id);
+    return this.update(id, { status });
   }
 
   async nudgeAssignee(id: string): Promise<any> {
