@@ -23,6 +23,12 @@ export class User {
   @Column({ nullable: true })
   phoneNumber: string;
 
+  @Column({ unique: true, nullable: true })
+  telegramToken: string;
+
+  @Column({ nullable: true })
+  telegramChatId: string;
+
   @Column('text', { array: true, default: '{}' })
   refreshTokens: string[];
 
