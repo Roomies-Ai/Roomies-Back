@@ -75,6 +75,10 @@ import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
+      .apply(RequestLoggerMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    consumer
       .apply(AuthMiddleware)
       .exclude(
         'auth/(.*)',
