@@ -6,7 +6,8 @@ import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
 import { HouseType } from '../models/house-type.entity';
 import { TaskType } from '../models/task-type.entity';
-import { DEFAULT_TASK_TYPES } from '../helpers/consts';
+import { Task } from '../models/task.entity';
+import { DEFAULT_TASK_TYPES, TaskStatus } from '../helpers/consts';
 import { promptGemini } from '../helpers/gemini';
 import { generateTasksPrompt } from '../helpers/prompts';
 import { randomBytes } from 'crypto';
@@ -24,6 +25,8 @@ export class HouseholdsService {
     private taskTypesRepository: Repository<TaskType>,
     @InjectRepository(HouseType)
     private houseTypesRepository: Repository<HouseType>,
+    @InjectRepository(Task)
+    private tasksRepository: Repository<Task>,
   ) {}
 
   async create(createData: any, userId?: string): Promise<Household> {
@@ -191,7 +194,23 @@ export class HouseholdsService {
     user.households = user.households.filter(h => h.id !== householdId);
     await this.usersRepository.save(user);
 
-    return { message: `User #${userId} removed from Household #${householdId}` };
+    // Unassign tasks and set to pending in a type-safe way
+    const tasksToUnassign = await this.tasksRepository.find({
+      where: {
+        household: { id: householdId },
+        assignee: { id: userId }
+      }
+    });
+
+    if (tasksToUnassign.length > 0) {
+      tasksToUnassign.forEach(t => {
+        t.assignee = null as any;
+        t.status = TaskStatus.PENDING;
+      });
+      await this.tasksRepository.save(tasksToUnassign);
+    }
+
+    return { message: `User #${userId} removed from Household #${householdId}, tasks unassigned.` };
   }
 
   async addPet(householdId: string, petData: Partial<Pet>): Promise<Pet> {
