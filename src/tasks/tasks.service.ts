@@ -70,10 +70,7 @@ export class TasksService {
    * Process a free-text message from Telegram to extract suggested tasks.
    */
   async processTelegramMessage(householdId: string, message: string) {
-    const household = await this.householdRepository.findOne({
-      where: { id: householdId },
-      relations: ['houseType'],
-    });
+    const household = await this.findHouseholdById(householdId, ['houseType']);
 
     if (!household) throw new NotFoundException('Household not found');
 
@@ -92,7 +89,7 @@ export class TasksService {
    * Saves a list of tasks for a household.
    */
   async bulkCreateTasks(householdId: string, tasks: Partial<Task>[]) {
-    const household = await this.householdRepository.findOneBy({ id: householdId });
+    const household = await this.findHouseholdById(householdId);
     if (!household) throw new NotFoundException('Household not found');
 
     const taskEntities = tasks.map(t => this.taskRepository.create({
@@ -101,5 +98,29 @@ export class TasksService {
     }));
 
     return this.taskRepository.save(taskEntities);
+  }
+
+  /**
+   * Finds a household by its human-friendly Invite Code.
+   */
+  async findHouseholdByInviteCode(inviteCode: string, relations: string[] = []): Promise<Household | null> {
+    return this.householdRepository.findOne({
+      where: { inviteCode },
+      relations,
+    });
+  }
+
+  /**
+   * Finds a household by its UUID.
+   */
+  async findHouseholdById(id: string, relations: string[] = []): Promise<Household | null> {
+    // Only search by UUID if it's a valid UUID format to avoid DB errors
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+    if (!isUuid) return null;
+
+    return this.householdRepository.findOne({
+      where: { id },
+      relations,
+    });
   }
 }
