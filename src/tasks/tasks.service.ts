@@ -6,6 +6,8 @@ import { generateTasksPrompt, generateParseTelegramMessagePrompt } from '../help
 import { Task } from '../models/task.entity';
 import { Household } from '../models/household.entity';
 import { TaskStatus } from '../helpers/consts';
+import { User } from 'src/models/user.entity';
+import { TaskType } from 'src/models/task-type.entity';
 
 @Injectable()
 export class TasksService {
@@ -30,20 +32,47 @@ export class TasksService {
   }
 
   async findOne(id: string): Promise<Task> {
-    const task = await this.taskRepository.findOne({ where: { id }, relations: ['household', 'assignee'] });
+    const task = await this.taskRepository.findOne({ 
+      where: { id }, 
+      relations: ['household', 'assignee', 'taskType'] 
+    });
     if (!task) throw new NotFoundException(`Task #${id} not found`);
     return task;
   }
 
-  async update(id: string, updateData: Partial<Task>): Promise<Task> {
+  async update(id: string, updateData: any): Promise<Task> {
     const task = await this.findOne(id);
+    
+    // Resolve relations if IDs are passed as strings
+    if (updateData.assignee && typeof updateData.assignee === 'string') {
+      const household = await this.householdRepository.findOne({ 
+        where: { id: task.household.id }, 
+        relations: ['members'] 
+      });
+      updateData.assignee = household?.members?.find(m => m.id === updateData.assignee || m.username === updateData.assignee) || null;
+    }
+
+    if (updateData.taskType && typeof updateData.taskType === 'string') {
+      const household = await this.householdRepository.findOne({ 
+        where: { id: task.household.id }, 
+        relations: ['taskTypes'] 
+      });
+      updateData.taskType = household?.taskTypes?.find(tt => tt.id === updateData.taskType || tt.name === updateData.taskType) || null;
+    } else if (updateData.taskType === null) {
+      updateData.taskType = null;
+    }
+
     Object.assign(task, updateData);
-    const saved = await this.taskRepository.save(task);
-    return saved;
+    return this.taskRepository.save(task);
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task> {
     return this.update(id, { status });
+  }
+
+  async remove(id: string): Promise<void> {
+    const task = await this.findOne(id);
+    await this.taskRepository.remove(task);
   }
 
   async nudgeAssignee(id: string): Promise<any> {
@@ -75,7 +104,7 @@ export class TasksService {
    * Process a free-text message from Telegram to extract suggested tasks.
    */
   async processTelegramMessage(householdId: string, message: string) {
-    const household = await this.findHouseholdById(householdId, ['houseType']);
+    const household = await this.findHouseholdById(householdId, ['houseType', 'taskTypes']);
 
     if (!household) throw new NotFoundException('Household not found');
 
@@ -93,14 +122,37 @@ export class TasksService {
   /**
    * Saves a list of tasks for a household.
    */
-  async bulkCreateTasks(householdId: string, tasks: Partial<Task>[]) {
-    const household = await this.findHouseholdById(householdId);
+  async bulkCreateTasks(householdId: string, tasks: any[]) {
+    const household = await this.findHouseholdById(householdId, ['members', 'taskTypes']);
     if (!household) throw new NotFoundException('Household not found');
 
-    const taskEntities = tasks.map(t => this.taskRepository.create({
-      ...t,
-      household,
-    }));
+    const taskEntities = tasks.map(t => {
+      // Resolve assignee if provided as username
+      let assignee: User | null = null;
+      if (t.assignee && typeof t.assignee === 'string') {
+        assignee = household.members?.find(m => m.username === t.assignee) || null;
+      } else if (t.assignee && typeof t.assignee === 'object') {
+        assignee = t.assignee;
+      }
+
+      // Resolve taskType if provided as name or ID
+      let taskType: TaskType | null = null;
+      if (t.taskType) {
+        if (typeof t.taskType === 'string') {
+          taskType = household.taskTypes?.find(tt => tt.name === t.taskType || tt.id === t.taskType) || null;
+        } else if (typeof t.taskType === 'object' && t.taskType.id) {
+          taskType = household.taskTypes?.find(tt => tt.id === t.taskType.id) || null;
+        }
+      }
+
+      const task = new Task();
+      Object.assign(task, t);
+      task.household = household;
+      task.assignee = assignee as User;
+      task.taskType = taskType as TaskType;
+      task.status = t.status || TaskStatus.PENDING;
+      return task;
+    });
 
     return this.taskRepository.save(taskEntities);
   }
