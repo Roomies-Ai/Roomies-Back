@@ -22,6 +22,8 @@ import { StatsModule } from './stats/stats.module';
 import { HouseTypesModule } from './house-types/house-types.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { LoggerModule } from './logger/logger.module';
+import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
 
 @Module({
   imports: [
@@ -58,6 +60,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
       },
     }),
 
+    LoggerModule,
     AuthModule,
     TasksModule,
     UsersModule,
