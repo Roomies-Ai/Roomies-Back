@@ -1,30 +1,34 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
+import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
+  constructor(private readonly configService: ConfigService) {}
+
   use(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`AuthMiddleware: No Bearer token found for ${req.method} ${req.url}`);
       return next();
     }
 
     const token = authHeader.split(' ')[1];
 
     try {
-      const secret = process.env.JWT_SECRET;
+      const secret = this.configService.get<string>('JWT_SECRET');
       if (!secret) {
-        throw new Error('JWT_SECRET is not defined');
+        console.error('AuthMiddleware: JWT_SECRET is missing!');
+        throw new Error('JWT_SECRET is not defined in config');
       }
 
       const decoded = jwt.verify(token, secret) as any;
-      console.log('AuthMiddleware: Decoded user:', decoded);
       req['user'] = decoded;
       next();
     } catch (err) {
-      console.error('JWT Verification Error:', err.message);
+      console.error(`AuthMiddleware: Token validation failed for ${req.method} ${req.url}:`, err.message);
       next();
     }
   }

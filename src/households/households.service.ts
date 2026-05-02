@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Household } from '../models/household.entity';
 import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
+import { HouseType } from '../models/house-type.entity';
 import { TaskType } from '../models/task-type.entity';
 import { DEFAULT_TASK_TYPES } from '../helpers/consts';
 import { promptGemini } from '../helpers/gemini';
@@ -21,17 +22,48 @@ export class HouseholdsService {
     private petsRepository: Repository<Pet>,
     @InjectRepository(TaskType)
     private taskTypesRepository: Repository<TaskType>,
+    @InjectRepository(HouseType)
+    private houseTypesRepository: Repository<HouseType>,
   ) {}
 
-  async create(createData: Partial<Household>): Promise<Household> {
-    const household = this.householdsRepository.create(createData);
+  async create(createData: any, userId?: string): Promise<Household> {
+    const { houseTypeId, pets: petsData, ...data } = createData;
+    const household = this.householdsRepository.create(data as Partial<Household>);
+    
+    // Link House Type if provided
+    if (houseTypeId) {
+      const houseType = await this.houseTypesRepository.findOneBy({ id: houseTypeId });
+      if (houseType) {
+        household.houseType = houseType;
+      }
+    }
+
+    // Link creator if userId is provided
+    if (userId) {
+      const creator = await this.usersRepository.findOneBy({ id: userId });
+      if (creator) {
+        household.members = [creator];
+      }
+    }
+
     const savedHousehold = await this.householdsRepository.save(household);
+
+    // Generate unique invite code using the dedicated method
+    await this.generateInviteCode(savedHousehold.id);
 
     // Seed default task types
     const taskTypes = DEFAULT_TASK_TYPES.map(name =>
       this.taskTypesRepository.create({ name, household: savedHousehold })
     );
     await this.taskTypesRepository.save(taskTypes);
+
+    // Save pets if provided
+    if (petsData && Array.isArray(petsData) && petsData.length > 0) {
+      const pets = petsData.map((p: { name: string; kind: string }) =>
+        this.petsRepository.create({ name: p.name, kind: p.kind, household: savedHousehold })
+      );
+      await this.petsRepository.save(pets);
+    }
 
     return this.findOne(savedHousehold.id);
   }
