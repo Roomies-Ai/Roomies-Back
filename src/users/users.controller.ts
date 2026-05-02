@@ -1,10 +1,19 @@
-import { Controller, Patch, Body, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Req, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from '../models/user.entity';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('me')
+  getMe(@Req() req: any) {
+    const userId = req['user']?.id || req['user']?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('User context not found from middleware');
+    }
+    return this.usersService.findOne(userId);
+  }
 
   @Patch('me')
   updateMe(@Req() req: any, @Body() updateData: Partial<User>) {
