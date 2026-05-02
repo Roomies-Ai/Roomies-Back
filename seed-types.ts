@@ -10,31 +10,45 @@ import { TaskType } from './src/models/task-type.entity';
 dotenv.config();
 
 const AppDataSource = new DataSource({
-    type: 'postgres',
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
-    username: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    entities: [HouseType, Household, User, Task, Pet, TaskType],
-    synchronize: false,
+  type: 'postgres',
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  username: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  entities: [HouseType, Household, User, Task, Pet, TaskType],
+  synchronize: false,
 });
 
-async function seed() {
-    await AppDataSource.initialize();
-    const repo = AppDataSource.getRepository(HouseType);
+export async function seed() {
+  await AppDataSource.initialize();
+  const repo = AppDataSource.getRepository(HouseType);
 
-    const types = ['Apartment', 'Villa', 'Studio', 'Bungalow', 'Cottage', 'Townhouse', 'Chalet', 'Loft', 'Mansion', 'Duplex', 'Triplex', 'Quadplex', 'Other'];
+  const types = [
+    'Apartment',
+    'Villa',
+    'Studio',
+    'Bungalow',
+    'Cottage',
+    'Townhouse',
+    'Chalet',
+    'Loft',
+    'Mansion',
+    'Duplex',
+    'Triplex',
+    'Quadplex',
+    'Other',
+  ];
 
-    for (const name of types) {
-        const exists = await repo.findOneBy({ name });
-        if (!exists) {
-            await repo.save(repo.create({ name }));
-            console.log(`Seeded: ${name}`);
-        }
+  for (const name of types) {
+    const exists = await repo.findOneBy({ name });
+    if (!exists) {
+      await repo.save(repo.create({ name }));
+      console.log(`Seeded: ${name}`);
     }
+  }
 
-    await AppDataSource.destroy();
+  await AppDataSource.destroy();
 }
 
 seed().catch(console.error);
