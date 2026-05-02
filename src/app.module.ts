@@ -1,4 +1,9 @@
-import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  RequestMethod,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
@@ -31,14 +36,24 @@ import { AuthMiddleware } from './auth/auth.middleware';
           url: databaseUrl,
           host: !databaseUrl ? configService.get<string>('DB_HOST') : undefined,
           port: !databaseUrl ? configService.get<number>('DB_PORT') : undefined,
-          username: !databaseUrl ? configService.get<string>('DB_USERNAME') : undefined,
-          password: !databaseUrl ? configService.get<string>('DB_PASSWORD') : undefined,
-          database: !databaseUrl ? configService.get<string>('DB_NAME') : undefined,
+          username: !databaseUrl
+            ? configService.get<string>('DB_USERNAME')
+            : undefined,
+          password: !databaseUrl
+            ? configService.get<string>('DB_PASSWORD')
+            : undefined,
+          database: !databaseUrl
+            ? configService.get<string>('DB_NAME')
+            : undefined,
           entities: [User, Task, Household, Pet, HouseType, TaskType],
           synchronize: true, // Note: Set to false in production
-          ssl: {
-            rejectUnauthorized: false, // Required for Supabase in many environments
-          },
+          ...(configService.get<string>('DB_IS_SSL') === 'true'
+            ? {
+                ssl: {
+                  rejectUnauthorized: false,
+                },
+              }
+            : {}),
         };
       },
     }),
@@ -66,5 +81,3 @@ export class AppModule implements NestModule {
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }
-
-
