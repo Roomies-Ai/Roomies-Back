@@ -1,4 +1,14 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, ManyToMany, JoinTable } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  ManyToMany,
+  JoinTable,
+} from 'typeorm';
 import { Household } from './household.entity';
 import { Task } from './task.entity';
 import { TaskType } from './task-type.entity';
@@ -6,40 +16,46 @@ import { TaskType } from './task-type.entity';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  username: string;
+  username!: string;
 
   @Column({ unique: true })
-  email: string;
+  email!: string;
 
   @Column()
-  password: string;
+  password!: string;
 
   @Column({ nullable: true })
-  profilePicture: string;
-  
+  profilePicture!: string | null;
+
   @Column({ nullable: true })
-  phoneNumber: string;
+  phoneNumber!: string | null;
+
+  @Column({ unique: true, nullable: true })
+  telegramToken!: string | null;
+
+  @Column({ nullable: true })
+  telegramChatId!: string | null;
 
   @Column('text', { array: true, default: '{}' })
-  refreshTokens: string[];
+  refreshTokens!: string[];
 
-  @ManyToMany(() => Household, household => household.members)
+  @ManyToMany(() => Household, (household) => household.members)
   @JoinTable()
-  households: Household[];
+  households!: Household[];
 
-  @OneToMany(() => Task, task => task.assignee)
-  assignedTasks: Task[];
+  @OneToMany(() => Task, (task) => task.assignee)
+  assignedTasks!: Task[];
 
-  @ManyToMany(() => TaskType, taskType => taskType.preferringUsers)
+  @ManyToMany(() => TaskType, (taskType) => taskType.preferringUsers)
   @JoinTable()
-  preferredTaskTypes: TaskType[];
+  preferredTaskTypes!: TaskType[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

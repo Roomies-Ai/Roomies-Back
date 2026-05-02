@@ -1,20 +1,27 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Household } from './household.entity';
 
 @Entity('house_types')
 export class HouseType {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ unique: true })
-  name: string; // e.g., 'Apartment', 'Villa'
+  name!: string | null; // e.g., 'Apartment', 'Villa'
 
-  @OneToMany(() => Household, household => household.houseType)
-  households: Household[];
+  @OneToMany(() => Household, (household) => household.houseType)
+  households!: Household[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }
