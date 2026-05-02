@@ -43,7 +43,7 @@ import { HouseTypesModule } from './house-types/house-types.module';
           ...(configService.get<string>('DB_IS_SSL') === 'true'
             ? {
                 ssl: {
-                  rejectUnauthorized: false, // Required for Supabase in many environments
+                  rejectUnauthorized: false,
                 },
               }
             : {}),
