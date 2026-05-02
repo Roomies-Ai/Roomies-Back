@@ -1,23 +1,32 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Household } from './household.entity';
 
 @Entity('pets')
 export class Pet {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column()
-  kind: string;
+  kind!: string;
 
-  @ManyToOne(() => Household, household => household.pets, { onDelete: 'CASCADE' })
-  household: Household;
+  @ManyToOne(() => Household, (household) => household.pets, {
+    onDelete: 'CASCADE',
+  })
+  household!: Household;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

@@ -7,6 +7,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../models/user.entity';
+import { UsersService } from '../users/users.service';
 
 import { UserDto } from '../dtos/user.dto';
 
@@ -15,6 +16,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private readonly usersService: UsersService,
   ) {}
 
   async getGoogleUserInfo(accessToken: string) {
@@ -112,6 +114,7 @@ export class AuthService {
           password: 'google-sso',
         });
         await this.userRepository.save(user);
+        await this.usersService.generateTelegramToken(user.id);
       }
 
       const { accessToken, refreshToken } = await this.setTokens(user);
@@ -142,6 +145,7 @@ export class AuthService {
         password: hashedPassword,
       });
       await this.userRepository.save(user);
+      await this.usersService.generateTelegramToken(user.id);
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
