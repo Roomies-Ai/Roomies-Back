@@ -29,14 +29,24 @@ import { HouseTypesModule } from './house-types/house-types.module';
           url: databaseUrl,
           host: !databaseUrl ? configService.get<string>('DB_HOST') : undefined,
           port: !databaseUrl ? configService.get<number>('DB_PORT') : undefined,
-          username: !databaseUrl ? configService.get<string>('DB_USERNAME') : undefined,
-          password: !databaseUrl ? configService.get<string>('DB_PASSWORD') : undefined,
-          database: !databaseUrl ? configService.get<string>('DB_NAME') : undefined,
+          username: !databaseUrl
+            ? configService.get<string>('DB_USERNAME')
+            : undefined,
+          password: !databaseUrl
+            ? configService.get<string>('DB_PASSWORD')
+            : undefined,
+          database: !databaseUrl
+            ? configService.get<string>('DB_NAME')
+            : undefined,
           entities: [User, Task, Household, Pet, HouseType, TaskType],
           synchronize: true, // Note: Set to false in production
-          ssl: {
-            rejectUnauthorized: false, // Required for Supabase in many environments
-          },
+          ...(configService.get<string>('DB_IS_SSL') === 'true'
+            ? {
+                ssl: {
+                  rejectUnauthorized: false, // Required for Supabase in many environments
+                },
+              }
+            : {}),
         };
       },
     }),
@@ -51,5 +61,4 @@ import { HouseTypesModule } from './house-types/house-types.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
-
+export class AppModule {}
