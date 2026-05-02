@@ -80,20 +80,13 @@ export class TelegramService implements OnModuleInit {
           return ctx.reply('❌ Could not find any tasks in your message.');
         }
 
-        state.pendingTasks = tasks;
+        // Initialize all tasks as approved
+        state.pendingTasks = tasks.map(t => ({ ...t, isApproved: true }));
         this.userStates.set(chatId, state);
 
-        let response = '📋 *Suggested Tasks:*\n\n';
-        tasks.forEach((t, i) => {
-          response += `${i + 1}. *${t.title}* (${t.points} pts)\n_${t.description}_\n\n`;
-        });
-
         await ctx.replyWithMarkdown(
-          response,
-          Markup.inlineKeyboard([
-            [Markup.button.callback('✅ Approve & Save', 'approve_tasks')],
-            [Markup.button.callback('❌ Cancel', 'cancel_tasks')],
-          ])
+          this.getSuggestionsText(state.pendingTasks),
+          this.getSuggestionsKeyboard(state.pendingTasks)
         );
       } catch (error) {
         this.logger.error('Error processing telegram message', error);
@@ -101,20 +94,49 @@ export class TelegramService implements OnModuleInit {
       }
     });
 
+    // Handle Individual Toggle
+    this.bot.action(/^toggle_(\d+)$/, async (ctx) => {
+      const index = parseInt(ctx.match[1]);
+      const chatId = ctx.from.id;
+      const state = this.userStates.get(chatId);
+
+      if (!state?.pendingTasks?.[index]) return ctx.answerCbQuery('Task not found.');
+
+      state.pendingTasks[index].isApproved = !state.pendingTasks[index].isApproved;
+      this.userStates.set(chatId, state);
+
+      try {
+        await ctx.editMessageText(
+          this.getSuggestionsText(state.pendingTasks),
+          { 
+            parse_mode: 'Markdown',
+            ...this.getSuggestionsKeyboard(state.pendingTasks)
+          }
+        );
+        ctx.answerCbQuery();
+      } catch (e) {
+        // Message might be same, ignore
+        ctx.answerCbQuery();
+      }
+    });
+
     // Handle Approval
     this.bot.action('approve_tasks', async (ctx) => {
       const chatId = ctx.from.id;
       const state = this.userStates.get(chatId);
+      const approvedTasks = state?.pendingTasks?.filter(t => t.isApproved) || [];
 
-      if (!state?.pendingTasks || state.pendingTasks.length === 0) {
-        return ctx.answerCbQuery('No tasks to approve.');
+      if (approvedTasks.length === 0) {
+        return ctx.answerCbQuery('No tasks selected to approve.');
       }
 
       try {
-        await this.tasksService.bulkCreateTasks(state.householdId, state.pendingTasks);
-        await ctx.editMessageText('✅ *Tasks saved successfully!*', { parse_mode: 'Markdown' });
-        state.pendingTasks = [];
-        this.userStates.set(chatId, state);
+        if(state){
+          await this.tasksService.bulkCreateTasks(state.householdId, approvedTasks);
+          await ctx.editMessageText(`✅ *${approvedTasks.length} tasks saved successfully!*`, { parse_mode: 'Markdown' });
+          state.pendingTasks = [];
+          this.userStates.set(chatId, state);
+        }
       } catch (error) {
         this.logger.error('Error saving tasks', error);
         ctx.answerCbQuery('Failed to save tasks.');
@@ -134,5 +156,33 @@ export class TelegramService implements OnModuleInit {
         { parse_mode: 'Markdown' }
       );
     });
+  }
+
+  private getSuggestionsText(tasks: any[]): string {
+    let response = '📋 *AI Suggestions*\n\n';
+    tasks.forEach((t, i) => {
+      const status = t.isApproved ? '✅' : '⬜';
+      response += `${status} ${i + 1}. *${t.title}*\n_${t.description}_\n\n`;
+    });
+    return response;
+  }
+
+  private getSuggestionsKeyboard(tasks: any[]) {
+    const buttons = tasks.map((t, i) => [
+      Markup.button.callback(
+        `${t.isApproved ? '✅' : '⬜'} Task ${i + 1}: ${t.title.substring(0, 15)}...`, 
+        `toggle_${i}`
+      )
+    ]);
+
+    const approvedCount = tasks.filter(t => t.isApproved).length;
+
+    return Markup.inlineKeyboard([
+      ...buttons,
+      [
+        Markup.button.callback(`💾 Confirm (${approvedCount})`, 'approve_tasks'),
+        Markup.button.callback('❌ Cancel', 'cancel_tasks')
+      ]
+    ]);
   }
 }
