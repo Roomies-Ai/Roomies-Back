@@ -1,6 +1,7 @@
 export const generateTasksPrompt = (household: any) => {
   const name = household?.name || 'a general household';
   const houseType = household?.houseType?.name || 'House';
+  const taskTypes = household?.taskTypes?.map((tt: any) => tt.name).join(', ') || 'General';
   
   const pets = household?.pets?.length 
     ? household.pets.map((p: any) => `a ${p.kind} named ${p.name}`).join(', ') 
@@ -13,11 +14,16 @@ export const generateTasksPrompt = (household: any) => {
             The tasks should be relevant to this specific household. 
             For example, if they have pets, include tasks to feed/walk them.
             The tasks should also include standard weekly tasks like cleaning the house, taking out the trash, etc.
+            
+            Available Task Categories: ${taskTypes}.
+            Assign each task to ONE of these categories.
+
             Return the tasks in JSON format with the following fields:
             - title: string
             - description: string
             - status: string (pending, in-progress, completed, overdue)
             - points: number (1-10 based on difficulty)
+            - taskType: string (Must be one of the categories listed above)
             `;
 };
 
@@ -42,19 +48,24 @@ export const generateFairnessPrompt = (task: any, memberStats: any[]) => {
 
 export const generateParseTelegramMessagePrompt = (message: string, household: any) => {
   const name = household?.name || 'the household';
+  const taskTypes = household?.taskTypes?.map((tt: any) => tt.name).join(', ') || 'General';
+
   return `
     You are an AI that extracts household tasks from a free-text message.
     Message: "${message}"
     
     Context: This is for ${name}, a ${household?.houseType?.name || 'home'}.
+    Available Categories: ${taskTypes}.
     
     Instructions:
     1. Extract a list of distinct tasks mentioned or implied in the message.
     2. Assign a difficulty score (points) from 1 to 10 for each task.
-    3. Return ONLY a valid JSON array of task objects with these fields:
+    3. Assign each task to ONE of the Available Categories listed above.
+    4. Return ONLY a valid JSON array of task objects with these fields:
        - title: string
        - description: string (brief)
        - points: number
        - status: "pending"
+       - taskType: string (Must be one of: ${taskTypes})
   `;
 };

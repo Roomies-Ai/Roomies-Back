@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Household } from '../models/household.entity';
 import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
 import { HouseType } from '../models/house-type.entity';
 import { TaskType } from '../models/task-type.entity';
-import { DEFAULT_TASK_TYPES } from '../helpers/consts';
+import { Task } from '../models/task.entity';
+import { DEFAULT_TASK_TYPES, TaskStatus } from '../helpers/consts';
 import { promptGemini } from '../helpers/gemini';
 import { generateTasksPrompt } from '../helpers/prompts';
 import { randomBytes } from 'crypto';
@@ -24,6 +25,8 @@ export class HouseholdsService {
     private taskTypesRepository: Repository<TaskType>,
     @InjectRepository(HouseType)
     private houseTypesRepository: Repository<HouseType>,
+    @InjectRepository(Task)
+    private tasksRepository: Repository<Task>,
   ) {}
 
   async create(createData: any, userId?: string): Promise<Household> {
@@ -78,8 +81,17 @@ export class HouseholdsService {
   }
 
   async findByUserId(userId: string): Promise<Household[]> {
-    return this.householdsRepository.find({
+    // 1. First find the IDs of all households this user belongs to
+    const households = await this.householdsRepository.find({
       where: { members: { id: userId } },
+      select: ['id']
+    });
+
+    if (households.length === 0) return [];
+
+    // 2. Fetch those households in full with all their members and tasks
+    return this.householdsRepository.find({
+      where: { id: In(households.map(h => h.id)) },
       relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
     });
   }
@@ -155,9 +167,12 @@ export class HouseholdsService {
     return this.findOne(household.id);
   }
 
-  /**
-   * Removes a user from a specific household.
-   */
+  async addTaskType(householdId: string, name: string): Promise<TaskType> {
+    const household = await this.findOne(householdId);
+    const taskType = this.taskTypesRepository.create({ name, household });
+    return this.taskTypesRepository.save(taskType);
+  }
+
   async removeUser(householdId: string, userId: string): Promise<any> {
     // Validate household exists first
     await this.findOne(householdId);
@@ -179,7 +194,23 @@ export class HouseholdsService {
     user.households = user.households.filter(h => h.id !== householdId);
     await this.usersRepository.save(user);
 
-    return { message: `User #${userId} removed from Household #${householdId}` };
+    // Unassign tasks and set to pending in a type-safe way
+    const tasksToUnassign = await this.tasksRepository.find({
+      where: {
+        household: { id: householdId },
+        assignee: { id: userId }
+      }
+    });
+
+    if (tasksToUnassign.length > 0) {
+      tasksToUnassign.forEach(t => {
+        t.assignee = null as any;
+        t.status = TaskStatus.PENDING;
+      });
+      await this.tasksRepository.save(tasksToUnassign);
+    }
+
+    return { message: `User #${userId} removed from Household #${householdId}, tasks unassigned.` };
   }
 
   async addPet(householdId: string, petData: Partial<Pet>): Promise<Pet> {
