@@ -55,17 +55,20 @@ export const generateParseTelegramMessagePrompt = (message: string, household: a
     Message: "${message}"
     
     Context: This is for ${name}, a ${household?.houseType?.name || 'home'}.
+    Current Date: ${new Date().toISOString().split('T')[0]} (Use this to resolve relative dates like "tomorrow" or "next Monday").
     Available Categories: ${taskTypes}.
     
     Instructions:
     1. Extract a list of distinct tasks mentioned or implied in the message.
     2. Assign a difficulty score (points) from 1 to 10 for each task.
     3. Assign each task to ONE of the Available Categories listed above.
-    4. Return ONLY a valid JSON array of task objects with these fields:
+    4. Resolve any mentioned deadlines into a specific date.
+    5. Return ONLY a valid JSON array of task objects with these fields:
        - title: string
        - description: string (brief)
        - points: number
        - status: "pending"
        - taskType: string (Must be one of: ${taskTypes})
+       - dueDate: string (YYYY-MM-DD format. If not mentioned, use today's date)
   `;
 };
