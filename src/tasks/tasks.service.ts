@@ -62,6 +62,16 @@ export class TasksService {
       updateData.taskType = null;
     }
 
+    // Auto-set status based on due date if assignee is being set and status is pending
+    if (updateData.assignee && (task.status === TaskStatus.PENDING)) {
+      const now = new Date();
+      if (task.dueDate && task.dueDate < now) {
+        task.status = TaskStatus.OVERDUE;
+      } else {
+        task.status = TaskStatus.IN_PROGRESS;
+      }
+    }
+
     Object.assign(task, updateData);
     return this.taskRepository.save(task);
   }
