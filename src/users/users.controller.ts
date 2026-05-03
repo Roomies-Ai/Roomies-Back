@@ -6,6 +6,20 @@ import { User } from '../models/user.entity';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get('me/telegram-token')
+  async getTelegramToken(@Req() req: any) {
+    const userId = req['user']?.id || req['user']?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('User context not found from middleware');
+    }
+    let user = await this.usersService.findUserById(userId);
+    if (!user) throw new UnauthorizedException();
+    if (!user.telegramToken) {
+      user = await this.usersService.generateTelegramToken(userId);
+    }
+    return { telegramToken: user.telegramToken };
+  }
+
   @Get('me')
   getMe(@Req() req: any) {
     const userId = req['user']?.id || req['user']?.userId;
