@@ -14,7 +14,7 @@ import { Pet } from './pet.entity';
 import { HouseType } from './house-type.entity';
 import { TaskType } from './task-type.entity';
 
-@Entity('households')
+@Entity('households', { schema: 'public' })
 export class Household {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -28,7 +28,7 @@ export class Household {
   })
   houseType!: HouseType | null;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ unique: true, nullable: true, type: 'varchar' })
   inviteCode!: string | null;
 
   @OneToMany(() => Pet, (pet) => pet.household, { cascade: true })

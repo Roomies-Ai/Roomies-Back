@@ -12,13 +12,13 @@ import { Household } from './household.entity';
 import { Task } from './task.entity';
 import { User } from './user.entity';
 
-@Entity('task_types')
+@Entity('task_types', { schema: 'public' })
 export class TaskType {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column()
-  name!: string;
+  @Column({ nullable: true, type: 'varchar' })
+  name!: string | null;
 
   @ManyToOne(() => Household, (household) => household.taskTypes, {
     onDelete: 'CASCADE',

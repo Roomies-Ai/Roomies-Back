@@ -11,7 +11,7 @@ import { User } from './user.entity';
 import { Household } from './household.entity';
 import { TaskType } from './task-type.entity';
 
-@Entity('tasks')
+@Entity('tasks', { schema: 'public' })
 export class Task {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

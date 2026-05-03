@@ -1,12 +1,11 @@
 import { User } from '../models/user.entity';
 
-
 export class UserDto {
   id: string;
   username: string;
   email: string;
-  profilePicture: string | undefined;
-  phoneNumber: string | undefined;
+  profilePicture: string | null;
+  phoneNumber: string | null;
 
   constructor(user: User) {
     this.id = user.id;

@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { Household } from './household.entity';
 
-@Entity('pets')
+@Entity('pets', { schema: 'public' })
 export class Pet {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

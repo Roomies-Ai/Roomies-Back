@@ -13,7 +13,7 @@ import { Household } from './household.entity';
 import { Task } from './task.entity';
 import { TaskType } from './task-type.entity';
 
-@Entity('users')
+@Entity('users', { schema: 'public' })
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -27,16 +27,16 @@ export class User {
   @Column()
   password!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   profilePicture!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   phoneNumber!: string | null;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ unique: true, nullable: true, type: 'varchar' })
   telegramToken!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   telegramChatId!: string | null;
 
   @Column('text', { array: true, default: '{}' })
