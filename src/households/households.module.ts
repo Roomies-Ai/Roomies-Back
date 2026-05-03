@@ -7,9 +7,10 @@ import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
 import { TaskType } from '../models/task-type.entity';
 import { HouseType } from '../models/house-type.entity';
+import { Task } from '../models/task.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Household, User, Pet, TaskType, HouseType])],
+  imports: [TypeOrmModule.forFeature([Household, User, Pet, TaskType, HouseType, Task])],
   controllers: [HouseholdsController],
   providers: [HouseholdsService],
   exports: [HouseholdsService]
