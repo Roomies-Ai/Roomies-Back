@@ -44,6 +44,11 @@ export class HouseholdsController {
     return this.householdsService.joinByInviteCode(userId, inviteCode);
   }
 
+  @Post(':id/task-types')
+  addTaskType(@Param('id') id: string, @Body('name') name: string) {
+    return this.householdsService.addTaskType(id, name);
+  }
+
   @Delete(':id/users/:userId')
   removeUser(@Param('id') id: string, @Param('userId') userId: string) {
     return this.householdsService.removeUser(id, userId);

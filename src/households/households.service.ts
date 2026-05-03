@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Household } from '../models/household.entity';
 import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
@@ -78,8 +78,17 @@ export class HouseholdsService {
   }
 
   async findByUserId(userId: string): Promise<Household[]> {
-    return this.householdsRepository.find({
+    // 1. First find the IDs of all households this user belongs to
+    const households = await this.householdsRepository.find({
       where: { members: { id: userId } },
+      select: ['id']
+    });
+
+    if (households.length === 0) return [];
+
+    // 2. Fetch those households in full with all their members and tasks
+    return this.householdsRepository.find({
+      where: { id: In(households.map(h => h.id)) },
       relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
     });
   }
@@ -155,9 +164,12 @@ export class HouseholdsService {
     return this.findOne(household.id);
   }
 
-  /**
-   * Removes a user from a specific household.
-   */
+  async addTaskType(householdId: string, name: string): Promise<TaskType> {
+    const household = await this.findOne(householdId);
+    const taskType = this.taskTypesRepository.create({ name, household });
+    return this.taskTypesRepository.save(taskType);
+  }
+
   async removeUser(householdId: string, userId: string): Promise<any> {
     // Validate household exists first
     await this.findOne(householdId);
