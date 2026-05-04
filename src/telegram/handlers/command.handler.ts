@@ -24,5 +24,9 @@ export const handleLink = async (ctx: any, tasksService: TasksService, userState
   }
 
   userStates.set(ctx.from.id, { householdId: household.id });
-  await ctx.reply(`✅ Linked to Household: *${household.name}*`, { parse_mode: 'Markdown' });
+  await ctx.reply(
+    `✅ Linked to Household: *${household.name}*\n\n` +
+    `Now simply *write what you need* (e.g., "The kitchen is a mess and we need to buy milk") and I will extract the tasks for you! 🪄`,
+    { parse_mode: 'Markdown' }
+  );
 };
