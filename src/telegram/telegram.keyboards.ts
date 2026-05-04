@@ -42,6 +42,9 @@ export const getSuggestionsKeyboard = (tasks: any[]) => {
 };
 
 export const getCalendarKeyboard = (index: number, year: number, month: number) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
   const monthName = new Date(year, month).toLocaleString('en-US', { month: 'long' });
@@ -72,7 +75,13 @@ export const getCalendarKeyboard = (index: number, year: number, month: number) 
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    currentRow.push(Markup.button.callback(String(day), `set_date_${index}_${dateStr}`));
+    const dateObj = new Date(year, month, day);
+    
+    if (dateObj < today) {
+      currentRow.push(Markup.button.callback('·', 'ignore'));
+    } else {
+      currentRow.push(Markup.button.callback(String(day), `set_date_${index}_${dateStr}`));
+    }
     
     if (currentRow.length === 7) {
       rows.push(currentRow);
@@ -91,8 +100,12 @@ export const getCalendarKeyboard = (index: number, year: number, month: number) 
   const nextMonth = month === 11 ? 0 : month + 1;
   const nextYear = month === 11 ? year + 1 : year;
 
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
   rows.push([
-    Markup.button.callback('⬅️', `calendar_nav_${index}_${prevYear}_${prevMonth}`),
+    isCurrentMonth 
+      ? Markup.button.callback(' ', 'ignore')
+      : Markup.button.callback('⬅️', `calendar_nav_${index}_${prevYear}_${prevMonth}`),
     Markup.button.callback('Back', 'back_to_suggestions'),
     Markup.button.callback('➡️', `calendar_nav_${index}_${nextYear}_${nextMonth}`)
   ]);
