@@ -80,20 +80,33 @@ export class HouseholdsService {
     return household;
   }
 
-  async findByUserId(userId: string): Promise<Household[]> {
-    // 1. First find the IDs of all households this user belongs to
-    const households = await this.householdsRepository.find({
-      where: { members: { id: userId } },
-      select: ['id']
-    });
+  async findByUserId(userId: string, full = false): Promise<any[]> {
+    if (full) {
+      const households = await this.householdsRepository.find({
+        where: { members: { id: userId } },
+        select: ['id']
+      });
+      if (households.length === 0) return [];
+      
+      const ids = households.map(h => h.id);
+      return this.householdsRepository.createQueryBuilder('household')
+        .where('household.id IN (:...ids)', { ids })
+        .leftJoinAndSelect('household.members', 'members')
+        .leftJoinAndSelect('household.tasks', 'tasks')
+        .leftJoinAndSelect('tasks.assignee', 'assignee')
+        .leftJoinAndSelect('tasks.taskType', 'taskType')
+        .leftJoinAndSelect('household.pets', 'pets')
+        .leftJoinAndSelect('household.houseType', 'houseType')
+        .leftJoinAndSelect('household.taskTypes', 'taskTypes')
+        .getMany();
+    }
 
-    if (households.length === 0) return [];
-
-    // 2. Fetch those households in full with all their members and tasks
-    return this.householdsRepository.find({
-      where: { id: In(households.map(h => h.id)) },
-      relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
-    });
+    // Basic view: Get ID, Name and Task Count efficiently
+    return this.householdsRepository.createQueryBuilder('household')
+      .innerJoin('household.members', 'members', 'members.id = :userId', { userId })
+      .select(['household.id', 'household.name'])
+      .loadRelationCountAndMap('household.taskCount', 'household.tasks')
+      .getMany();
   }
 
   /**
