@@ -88,25 +88,33 @@ export class HouseholdsService {
       });
       if (households.length === 0) return [];
       
-      const ids = households.map(h => h.id);
-      return this.householdsRepository.createQueryBuilder('household')
-        .where('household.id IN (:...ids)', { ids })
-        .leftJoinAndSelect('household.members', 'members')
-        .leftJoinAndSelect('household.tasks', 'tasks')
-        .leftJoinAndSelect('tasks.assignee', 'assignee')
-        .leftJoinAndSelect('tasks.taskType', 'taskType')
-        .leftJoinAndSelect('household.pets', 'pets')
-        .leftJoinAndSelect('household.houseType', 'houseType')
-        .leftJoinAndSelect('household.taskTypes', 'taskTypes')
-        .getMany();
-    }
+    const ids = households.map(h => h.id);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    // Basic view: Get ID, Name and Task Count efficiently
     return this.householdsRepository.createQueryBuilder('household')
-      .innerJoin('household.members', 'members', 'members.id = :userId', { userId })
-      .select(['household.id', 'household.name'])
-      .loadRelationCountAndMap('household.taskCount', 'household.tasks')
+      .where('household.id IN (:...ids)', { ids })
+      .leftJoinAndSelect('household.members', 'members')
+      .leftJoinAndSelect('household.tasks', 'tasks', 'tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: 'completed', twoWeeksAgo })
+      .leftJoinAndSelect('tasks.assignee', 'assignee')
+      .leftJoinAndSelect('tasks.taskType', 'taskType')
+      .leftJoinAndSelect('household.pets', 'pets')
+      .leftJoinAndSelect('household.houseType', 'houseType')
+      .leftJoinAndSelect('household.taskTypes', 'taskTypes')
       .getMany();
+  }
+
+  // Basic view: Get ID, Name and Task Count efficiently
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+  return this.householdsRepository.createQueryBuilder('household')
+    .innerJoin('household.members', 'members', 'members.id = :userId', { userId })
+    .select(['household.id', 'household.name'])
+    .loadRelationCountAndMap('household.taskCount', 'household.tasks', 'tasks', qb => 
+      qb.andWhere('tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: 'completed', twoWeeksAgo })
+    )
+    .getMany();
   }
 
   /**
