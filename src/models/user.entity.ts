@@ -24,6 +24,12 @@ export class User {
   phoneNumber: string;
 
   @Column('text', { array: true, default: '{}' })
+  vibes: string[];
+
+  @Column('jsonb', { default: {} })
+  preferences: Record<string, any>;
+
+  @Column('text', { array: true, default: '{}' })
   refreshTokens: string[];
 
   @ManyToMany(() => Household, household => household.members)
