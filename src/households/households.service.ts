@@ -95,7 +95,7 @@ export class HouseholdsService {
     return this.householdsRepository.createQueryBuilder('household')
       .where('household.id IN (:...ids)', { ids })
       .leftJoinAndSelect('household.members', 'members')
-      .leftJoinAndSelect('household.tasks', 'tasks', 'tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: 'completed', twoWeeksAgo })
+      .leftJoinAndSelect('household.tasks', 'tasks', 'tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: TaskStatus.COMPLETED, twoWeeksAgo })
       .leftJoinAndSelect('tasks.assignee', 'assignee')
       .leftJoinAndSelect('tasks.taskType', 'taskType')
       .leftJoinAndSelect('household.pets', 'pets')
@@ -112,7 +112,7 @@ export class HouseholdsService {
     .innerJoin('household.members', 'members', 'members.id = :userId', { userId })
     .select(['household.id', 'household.name'])
     .loadRelationCountAndMap('household.taskCount', 'household.tasks', 'tasks', qb => 
-      qb.andWhere('tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: 'completed', twoWeeksAgo })
+      qb.andWhere('tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: TaskStatus.COMPLETED, twoWeeksAgo })
     )
     .getMany();
   }
