@@ -80,20 +80,41 @@ export class HouseholdsService {
     return household;
   }
 
-  async findByUserId(userId: string): Promise<Household[]> {
-    // 1. First find the IDs of all households this user belongs to
-    const households = await this.householdsRepository.find({
-      where: { members: { id: userId } },
-      select: ['id']
-    });
+  async findByUserId(userId: string, full = false): Promise<any[]> {
+    if (full) {
+      const households = await this.householdsRepository.find({
+        where: { members: { id: userId } },
+        select: ['id']
+      });
+      if (households.length === 0) return [];
+      
+    const ids = households.map(h => h.id);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    if (households.length === 0) return [];
+    return this.householdsRepository.createQueryBuilder('household')
+      .where('household.id IN (:...ids)', { ids })
+      .leftJoinAndSelect('household.members', 'members')
+      .leftJoinAndSelect('household.tasks', 'tasks', 'tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: TaskStatus.COMPLETED, twoWeeksAgo })
+      .leftJoinAndSelect('tasks.assignee', 'assignee')
+      .leftJoinAndSelect('tasks.taskType', 'taskType')
+      .leftJoinAndSelect('household.pets', 'pets')
+      .leftJoinAndSelect('household.houseType', 'houseType')
+      .leftJoinAndSelect('household.taskTypes', 'taskTypes')
+      .getMany();
+  }
 
-    // 2. Fetch those households in full with all their members and tasks
-    return this.householdsRepository.find({
-      where: { id: In(households.map(h => h.id)) },
-      relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
-    });
+  // Basic view: Get ID, Name and Task Count efficiently
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+  return this.householdsRepository.createQueryBuilder('household')
+    .innerJoin('household.members', 'members', 'members.id = :userId', { userId })
+    .select(['household.id', 'household.name'])
+    .loadRelationCountAndMap('household.taskCount', 'household.tasks', 'tasks', qb => 
+      qb.andWhere('tasks.status != :completed OR tasks.updatedAt > :twoWeeksAgo', { completed: TaskStatus.COMPLETED, twoWeeksAgo })
+    )
+    .getMany();
   }
 
   /**

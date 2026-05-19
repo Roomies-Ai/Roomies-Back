@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UnauthorizedException, Query } from '@nestjs/common';
 import { HouseholdsService } from './households.service';
 import { Household } from '../models/household.entity';
 import { Pet } from '../models/pet.entity';
@@ -8,12 +8,12 @@ export class HouseholdsController {
   constructor(private readonly householdsService: HouseholdsService) { }
 
   @Get('me')
-  findMyHouseholds(@Req() req: any) {
+  findMyHouseholds(@Req() req: any, @Query('full') full?: string) {
     const userId = req['user']?.id || req['user']?.userId;
     if (!userId) {
       throw new UnauthorizedException('User context not found from middleware');
     }
-    return this.householdsService.findByUserId(userId);
+    return this.householdsService.findByUserId(userId, full === 'true');
   }
 
   @Get(':id')

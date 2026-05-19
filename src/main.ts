@@ -2,11 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import { AppLogger } from './logger/app-logger.service';
+import compression from 'compression';
 
 async function bootstrap() {
   const logger = new AppLogger('Bootstrap');
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(logger);
+  app.use(compression());
   app.use(cookieParser());
   app.enableCors({
     origin: true,

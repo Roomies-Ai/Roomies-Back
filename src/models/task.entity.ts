@@ -1,17 +1,15 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, Index } from 'typeorm';
 import { TaskStatus } from '../helpers/consts';
 import { User } from './user.entity';
 import { Household } from './household.entity';
 import { TaskType } from './task-type.entity';
 
 @Entity('tasks')
+@Index(['household', 'status'])
+@Index(['household', 'updatedAt'])
+@Index(['household', 'dueDate'])
+@Index('IDX_TASKS_STATS_COVERING', ['household', 'assignee', 'taskType', 'status', 'dueDate', 'points'])
+@Index(['assignee'])
 export class Task {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

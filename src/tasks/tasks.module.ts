@@ -6,10 +6,14 @@ import { Task } from '../models/task.entity';
 import { User } from '../models/user.entity';
 import { Household } from '../models/household.entity';
 import { FairnessService } from './fairness.service';
+import { StatsModule } from '../stats/stats.module';
 
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Task, User, Household])],
+    imports: [
+        TypeOrmModule.forFeature([Task, User, Household]),
+        StatsModule
+    ],
     controllers: [TasksController],
     providers: [TasksService, FairnessService],
     exports: [TasksService],

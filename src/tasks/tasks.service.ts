@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Brackets } from 'typeorm';
 import { promptGemini } from '../helpers/gemini';
 import { generateTasksPrompt, generateParseTelegramMessagePrompt } from '../helpers/prompts';
 import { Task } from '../models/task.entity';
@@ -8,6 +8,7 @@ import { Household } from '../models/household.entity';
 import { TaskStatus } from '../helpers/consts';
 import { User } from 'src/models/user.entity';
 import { TaskType } from 'src/models/task-type.entity';
+import { StatsService } from '../stats/stats.service';
 
 @Injectable()
 export class TasksService {
@@ -16,11 +17,18 @@ export class TasksService {
     private taskRepository: Repository<Task>,
     @InjectRepository(Household)
     private householdRepository: Repository<Household>,
+    private statsService: StatsService,
   ) {}
 
   async create(createData: Partial<Task>): Promise<Task> {
     const task = this.taskRepository.create(createData);
-    return this.taskRepository.save(task);
+    const saved = await this.taskRepository.save(task);
+    if (saved.household?.id) {
+      this.statsService.clearCache(saved.household.id);
+    } else if (createData.household?.id) {
+      this.statsService.clearCache(createData.household.id);
+    }
+    return saved;
   }
 
   async findAll(status?: TaskStatus, householdId?: string): Promise<Task[]> {
@@ -28,7 +36,24 @@ export class TasksService {
     if (status) whereCondition.status = status;
     if (householdId) whereCondition.household = { id: householdId };
 
-    return this.taskRepository.find({ where: whereCondition, relations: ['household', 'assignee'] });
+    return this.taskRepository.find({ where: whereCondition, relations: ['household', 'assignee', 'taskType'] });
+  }
+
+  async findMyTasks(userId: string): Promise<Task[]> {
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    return this.taskRepository.createQueryBuilder('task')
+      .leftJoinAndSelect('task.household', 'household')
+      .leftJoinAndSelect('task.assignee', 'assignee')
+      .leftJoinAndSelect('task.taskType', 'taskType')
+      .where('task.assignee.id = :userId', { userId })
+      .andWhere(new Brackets(qb => {
+        qb.where('task.status != :completed', { completed: TaskStatus.COMPLETED })
+          .orWhere('task.updatedAt > :twoWeeksAgo', { twoWeeksAgo });
+      }))
+      .orderBy('task.dueDate', 'ASC')
+      .getMany();
   }
 
   async findOne(id: string): Promise<Task> {
@@ -73,7 +98,11 @@ export class TasksService {
     }
 
     Object.assign(task, updateData);
-    return this.taskRepository.save(task);
+    const saved = await this.taskRepository.save(task);
+    if (saved.household?.id) {
+      this.statsService.clearCache(saved.household.id);
+    }
+    return saved;
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task> {
@@ -82,7 +111,11 @@ export class TasksService {
 
   async remove(id: string): Promise<void> {
     const task = await this.findOne(id);
+    const householdId = task.household?.id;
     await this.taskRepository.remove(task);
+    if (householdId) {
+      this.statsService.clearCache(householdId);
+    }
   }
 
   async nudgeAssignee(id: string): Promise<any> {
@@ -164,7 +197,9 @@ export class TasksService {
       return task;
     });
 
-    return this.taskRepository.save(taskEntities);
+    const saved = await this.taskRepository.save(taskEntities);
+    this.statsService.clearCache(householdId);
+    return saved;
   }
 
   /**

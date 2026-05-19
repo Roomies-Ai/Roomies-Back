@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { FairnessService } from './fairness.service';
 import { Task } from '../models/task.entity';
@@ -10,6 +10,12 @@ export class TasksController {
     private readonly tasksService: TasksService,
     private readonly fairnessService: FairnessService,
   ) {}
+
+  @Get('me')
+  findMyTasks(@Request() req: any) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.tasksService.findMyTasks(userId);
+  }
 
   @Post()
   create(@Body() createData: Partial<Task>) {
