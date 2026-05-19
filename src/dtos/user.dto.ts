@@ -12,7 +12,7 @@ export class UserDto {
     this.id = user.id;
     this.username = user.username;
     this.email = user.email;
-    this.profilePicture = user.profilePicture;
-    this.phoneNumber = user.phoneNumber;
+    this.profilePicture = user.profilePicture ?? undefined;
+    this.phoneNumber = user.phoneNumber ?? undefined;
   }
 }
