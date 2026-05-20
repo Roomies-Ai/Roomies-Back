@@ -1,6 +1,4 @@
 import { User } from '../models/user.entity';
-
-
 export class UserDto {
   id: string;
   username: string;

@@ -1,4 +1,11 @@
-import { Controller, Get, Patch, Body, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Body,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from '../models/user.entity';
 
@@ -27,16 +34,22 @@ export class UsersController {
       throw new UnauthorizedException('User context not found from middleware');
     }
     const user = await this.usersService.findOne(userId);
-    
+
     // Sanitize to prevent circular references in JSON serialization
     return {
       ...user,
-      preferredTaskTypes: (user.preferredTaskTypes || []).map(t => ({ id: t.id, name: t.name })),
-      households: (user.households || []).map(h => ({ 
-        id: h.id, 
+      preferredTaskTypes: (user.preferredTaskTypes || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      households: (user.households || []).map((h) => ({
+        id: h.id,
         name: h.name,
-        taskTypes: (h.taskTypes || []).map(tt => ({ id: tt.id, name: tt.name }))
-      }))
+        taskTypes: (h.taskTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+        })),
+      })),
     };
   }
 
@@ -46,7 +59,7 @@ export class UsersController {
     if (!userId) {
       throw new UnauthorizedException('User context not found from middleware');
     }
-    
+
     // Only allow updating certain fields
     const allowedUpdates: any = {
       username: updateData.username,
@@ -56,19 +69,27 @@ export class UsersController {
       vibes: updateData.vibes,
       preferences: updateData.preferences,
     };
-    
+
     // remove undefined
-    Object.keys(allowedUpdates).forEach(key => allowedUpdates[key] === undefined && delete allowedUpdates[key]);
-    
+    Object.keys(allowedUpdates).forEach(
+      (key) => allowedUpdates[key] === undefined && delete allowedUpdates[key],
+    );
+
     const user = await this.usersService.update(userId, allowedUpdates);
     return {
       ...user,
-      preferredTaskTypes: (user.preferredTaskTypes || []).map(t => ({ id: t.id, name: t.name })),
-      households: (user.households || []).map(h => ({ 
-        id: h.id, 
+      preferredTaskTypes: (user.preferredTaskTypes || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      households: (user.households || []).map((h) => ({
+        id: h.id,
         name: h.name,
-        taskTypes: (h.taskTypes || []).map(tt => ({ id: tt.id, name: tt.name }))
-      }))
+        taskTypes: (h.taskTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+        })),
+      })),
     };
   }
 
@@ -76,27 +97,39 @@ export class UsersController {
   async changePassword(@Req() req: any, @Body() body: any) {
     const userId = req['user']?.id || req['user']?.userId;
     const { oldPassword, newPassword } = body;
-    
+
     try {
       await this.usersService.updatePassword(userId, oldPassword, newPassword);
       return { message: 'Password updated successfully' };
     } catch (err) {
-      throw new UnauthorizedException(err.message);
+      throw new UnauthorizedException(err instanceof Error ? err.message : 'Unauthorized');
     }
   }
 
   @Patch('me/preferred-tasks')
-  async updatePreferredTasks(@Req() req: any, @Body('taskTypeIds') taskTypeIds: string[]) {
+  async updatePreferredTasks(
+    @Req() req: any,
+    @Body('taskTypeIds') taskTypeIds: string[],
+  ) {
     const userId = req['user']?.id || req['user']?.userId;
-    const user = await this.usersService.updatePreferredTasks(userId, taskTypeIds);
+    const user = await this.usersService.updatePreferredTasks(
+      userId,
+      taskTypeIds,
+    );
     return {
       ...user,
-      preferredTaskTypes: (user.preferredTaskTypes || []).map(t => ({ id: t.id, name: t.name })),
-      households: (user.households || []).map(h => ({ 
-        id: h.id, 
+      preferredTaskTypes: (user.preferredTaskTypes || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      households: (user.households || []).map((h) => ({
+        id: h.id,
         name: h.name,
-        taskTypes: (h.taskTypes || []).map(tt => ({ id: tt.id, name: tt.name }))
-      }))
+        taskTypes: (h.taskTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+        })),
+      })),
     };
   }
 

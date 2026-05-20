@@ -6,8 +6,8 @@ import { generateTasksPrompt, generateParseTelegramMessagePrompt } from '../help
 import { Task } from '../models/task.entity';
 import { Household } from '../models/household.entity';
 import { TaskStatus } from '../helpers/consts';
-import { User } from 'src/models/user.entity';
-import { TaskType } from 'src/models/task-type.entity';
+import { User } from '../models/user.entity';
+import { TaskType } from '../models/task-type.entity';
 import { StatsService } from '../stats/stats.service';
 
 @Injectable()

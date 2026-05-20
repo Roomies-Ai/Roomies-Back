@@ -28,7 +28,7 @@ export class Household {
   })
   houseType!: HouseType | null;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ unique: true, nullable: true, type: 'varchar' })
   inviteCode!: string | null;
 
   @OneToMany(() => Pet, (pet) => pet.household, { cascade: true })
