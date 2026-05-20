@@ -4,7 +4,6 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToOne,
   OneToMany,
   ManyToMany,
   JoinTable,
@@ -27,23 +26,23 @@ export class User {
   @Column()
   password!: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   profilePicture!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   phoneNumber!: string | null;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ unique: true, nullable: true, type: 'varchar' })
   telegramToken!: string | null;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, type: 'varchar' })
   telegramChatId!: string | null;
 
   @Column('text', { array: true, default: '{}' })
-  vibes: string[];
+  vibes!: string[];
 
   @Column('jsonb', { default: {} })
-  preferences: Record<string, any>;
+  preferences!: Record<string, any>;
 
   @Column('text', { array: true, default: '{}' })
   refreshTokens!: string[];

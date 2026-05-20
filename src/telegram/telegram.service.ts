@@ -6,10 +6,10 @@ import { TelegramHandlers } from './telegram.handlers';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
-  private bot: Telegraf;
+  private bot!: Telegraf;
   private readonly logger = new Logger(TelegramService.name);
   private userStates = new Map<number, UserState>();
-  private handlers: TelegramHandlers;
+  private handlers!: TelegramHandlers;
 
   constructor(private readonly tasksService: TasksService) {
     const token = process.env.BOT_TOKEN;

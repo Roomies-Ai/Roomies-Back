@@ -14,7 +14,7 @@ export class HouseType {
   id!: string;
 
   @Column({ unique: true })
-  name!: string | null; // e.g., 'Apartment', 'Villa'
+  name!: string;
 
   @OneToMany(() => Household, (household) => household.houseType)
   households!: Household[];
