@@ -1,0 +1,15 @@
+export enum HouseType {
+  APARTMENT = 'Apartment',
+  VILLA = 'Villa',
+  BUNGALOW = 'Bungalow',
+  COTTAGE = 'Cottage',
+  TOWN_HOUSE = 'Townhouse',
+  CHALEt = 'Chalet',
+  LOFT = 'Loft',
+  MANSION = 'Mansion',
+  DUPLEX = 'Duplex',
+  TRIPLEX = 'Triplex',
+  QUADPLEX = 'Quadplex',
+  STUDIO = 'Studio',
+  OTHER = 'Other',
+}
