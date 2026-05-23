@@ -2,39 +2,13 @@ import { TasksService } from '../../tasks/tasks.service';
 import { UsersService } from '../../users/users.service';
 import { UserState } from '../telegram.types';
 
-export const handleStart = async (ctx: any, usersService: UsersService) => {
-  const payload: string = ctx.startPayload || '';
 
-  if (payload.startsWith('link_')) {
-    const token = payload.slice(5);
-    const user = await usersService.findByTelegramToken(token);
-
-    if (!user) {
-      return ctx.reply(
-        '❌ Invalid or expired link token.\n\nPlease generate a new one from the Roomies app profile page.',
-      );
-    }
-
-    const chatId = String(ctx.from.id);
-
-    if (user.telegramChatId === chatId) {
-      return ctx.reply(
-        '✅ Your Telegram is already linked to this Roomies account!',
-      );
-    }
-
-    await usersService.saveTelegramChatId(user.id, chatId);
-
-    return ctx.reply(
-      `✅ *Telegram linked successfully!*\n\nWelcome, ${user.username}! You will now receive Roomies task notifications here. 🏠`,
-      { parse_mode: 'Markdown' },
-    );
-  }
-
+export const handleStart = async (ctx: any) => {
   return ctx.reply(
     'Welcome to Roomies Bot! 🏠\n\n' +
-      'Please link your household first by sending:\n' +
-      '`/link YOUR_INVITE_CODE`',
+      'To link your account, send:\n' +
+      '`/connect YOUR_TOKEN`\n\n' +
+      'Find your token in the Roomies app under Profile → Telegram.',
     { parse_mode: 'Markdown' },
   );
 };

@@ -15,7 +15,7 @@ export class TelegramHandlers {
 
   // Command Handlers
   async handleStart(ctx: any) {
-    return commandHandlers.handleStart(ctx, this.usersService);
+    return commandHandlers.handleStart(ctx);
   }
 
   async handleConnect(ctx: any) {
