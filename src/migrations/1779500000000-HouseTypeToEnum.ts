@@ -4,7 +4,7 @@ export class HouseTypeToEnum1779500000000 implements MigrationInterface {
     name = 'HouseTypeToEnum1779500000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TYPE "public"."households_housetype_enum" AS ENUM('Apartment', 'House', 'Studio', 'Condo', 'Dormitory', 'Other')`);
+        await queryRunner.query(`CREATE TYPE "public"."households_housetype_enum" AS ENUM('Apartment', 'Villa', 'Bungalow', 'Cottage', 'Townhouse', 'Chalet', 'Loft', 'Mansion', 'Duplex', 'Triplex', 'Quadplex', 'Studio', 'Other')`);
         await queryRunner.query(`ALTER TABLE "households" ADD "houseType" "public"."households_housetype_enum"`);
         // Migrate existing data: copy name from house_types into the new enum column
         await queryRunner.query(`
@@ -12,7 +12,7 @@ export class HouseTypeToEnum1779500000000 implements MigrationInterface {
             SET "houseType" = ht."name"::"public"."households_housetype_enum"
             FROM "house_types" ht
             WHERE h."houseTypeId" = ht."id"
-              AND ht."name" IN ('Apartment', 'House', 'Studio', 'Condo', 'Dormitory', 'Other')
+              AND ht."name" IN ('Apartment', 'Villa', 'Bungalow', 'Cottage', 'Townhouse', 'Chalet', 'Loft', 'Mansion', 'Duplex', 'Triplex', 'Quadplex', 'Studio', 'Other')
         `);
         await queryRunner.query(`ALTER TABLE "households" DROP CONSTRAINT "FK_8cadafb7d81d2d118b553aae424"`);
         await queryRunner.query(`ALTER TABLE "households" DROP COLUMN "houseTypeId"`);
