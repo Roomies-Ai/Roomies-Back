@@ -3,15 +3,15 @@ import { UserState } from '../telegram.types';
 import * as keyboards from '../telegram.keyboards';
 
 export const handleTextMessage = async (ctx: any, tasksService: TasksService, userStates: Map<number, UserState>) => {
+  const message = ctx.message.text;
+  if (message.startsWith('/')) return;
+
   const chatId = ctx.from.id;
   const state = userStates.get(chatId);
 
   if (!state?.householdId) {
     return ctx.reply('Please link your household first using /link <invite_code>');
   }
-
-  const message = ctx.message.text;
-  if (message.startsWith('/')) return;
 
   // Handle Custom Date Input
   if (state.awaitingDateForTaskIndex !== undefined) {

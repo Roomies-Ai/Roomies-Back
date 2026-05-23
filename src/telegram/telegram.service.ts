@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { Telegraf } from 'telegraf';
 import { TasksService } from '../tasks/tasks.service';
+import { UsersService } from '../users/users.service';
 import { UserState } from './telegram.types';
 import { TelegramHandlers } from './telegram.handlers';
 
@@ -11,18 +12,24 @@ export class TelegramService implements OnModuleInit {
   private userStates = new Map<number, UserState>();
   private handlers!: TelegramHandlers;
 
-  constructor(private readonly tasksService: TasksService) {
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly usersService: UsersService,
+  ) {
     const token = process.env.BOT_TOKEN;
     if (!token) {
       this.logger.error('BOT_TOKEN not found in environment');
       return;
     }
     this.bot = new Telegraf(token);
-    this.handlers = new TelegramHandlers(this.tasksService, this.userStates);
+    this.handlers = new TelegramHandlers(this.tasksService, this.usersService, this.userStates);
   }
 
   onModuleInit() {
     if (!this.bot) return;
+    this.bot.catch((err: any) => {
+      this.logger.error('Telegram bot error:', err);
+    });
     this.setupHandlers();
     this.bot.launch().then(() => {
       this.logger.log('Telegram Bot launched successfully');
@@ -34,6 +41,7 @@ export class TelegramService implements OnModuleInit {
   private setupHandlers() {
     // Commands
     this.bot.start((ctx) => this.handlers.handleStart(ctx));
+    this.bot.command('connect', (ctx) => this.handlers.handleConnect(ctx));
     this.bot.command('link', (ctx) => this.handlers.handleLink(ctx));
 
     // Messages
