@@ -11,6 +11,17 @@ services:
       - ./postgres_data:/var/lib/postgresql
     ports:
       - '5432:5432'
+  db-test:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: pgadmin4_container

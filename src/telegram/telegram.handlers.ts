@@ -1,4 +1,5 @@
 import { TasksService } from '../tasks/tasks.service';
+import { UsersService } from '../users/users.service';
 import { UserState } from './telegram.types';
 import * as commandHandlers from './handlers/command.handler';
 import * as messageHandlers from './handlers/message.handler';
@@ -8,12 +9,17 @@ import * as dateActions from './handlers/date.actions';
 export class TelegramHandlers {
   constructor(
     private readonly tasksService: TasksService,
+    private readonly usersService: UsersService,
     private readonly userStates: Map<number, UserState>
   ) {}
 
   // Command Handlers
   async handleStart(ctx: any) {
     return commandHandlers.handleStart(ctx);
+  }
+
+  async handleConnect(ctx: any) {
+    return commandHandlers.handleConnect(ctx, this.usersService);
   }
 
   async handleLink(ctx: any) {

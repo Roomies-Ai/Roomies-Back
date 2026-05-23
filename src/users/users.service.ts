@@ -72,6 +72,11 @@ export class UsersService {
     await this.usersRepository.update(userId, { telegramChatId: chatId });
   }
 
+  async unlinkTelegramChatId(userId: string): Promise<void> {
+    await this.usersRepository.update(userId, { telegramChatId: null });
+    await this.generateTelegramToken(userId);
+  }
+
   async update(id: string, updateData: Partial<User>): Promise<User> {
     await this.usersRepository.update(id, updateData);
     return this.findOne(id);
