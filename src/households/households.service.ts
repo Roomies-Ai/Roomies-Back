@@ -4,7 +4,6 @@ import { Repository, In } from 'typeorm';
 import { Household } from '../models/household.entity';
 import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
-import { HouseType } from '../models/house-type.entity';
 import { TaskType } from '../models/task-type.entity';
 import { Task } from '../models/task.entity';
 import { DEFAULT_TASK_TYPES, TaskStatus } from '../helpers/consts';
@@ -23,23 +22,13 @@ export class HouseholdsService {
     private petsRepository: Repository<Pet>,
     @InjectRepository(TaskType)
     private taskTypesRepository: Repository<TaskType>,
-    @InjectRepository(HouseType)
-    private houseTypesRepository: Repository<HouseType>,
     @InjectRepository(Task)
     private tasksRepository: Repository<Task>,
   ) {}
 
   async create(createData: any, userId?: string): Promise<Household> {
-    const { houseTypeId, pets: petsData, ...data } = createData;
+    const { pets: petsData, ...data } = createData;
     const household = this.householdsRepository.create(data as Partial<Household>);
-    
-    // Link House Type if provided
-    if (houseTypeId) {
-      const houseType = await this.houseTypesRepository.findOneBy({ id: houseTypeId });
-      if (houseType) {
-        household.houseType = houseType;
-      }
-    }
 
     // Link creator if userId is provided
     if (userId) {
@@ -74,7 +63,7 @@ export class HouseholdsService {
   async findOne(id: string): Promise<Household> {
     const household = await this.householdsRepository.findOne({
       where: { id },
-      relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'houseType', 'taskTypes'],
+      relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'taskTypes'],
     });
     if (!household) throw new NotFoundException(`Household #${id} not found`);
     return household;
@@ -99,7 +88,6 @@ export class HouseholdsService {
       .leftJoinAndSelect('tasks.assignee', 'assignee')
       .leftJoinAndSelect('tasks.taskType', 'taskType')
       .leftJoinAndSelect('household.pets', 'pets')
-      .leftJoinAndSelect('household.houseType', 'houseType')
       .leftJoinAndSelect('household.taskTypes', 'taskTypes')
       .getMany();
   }

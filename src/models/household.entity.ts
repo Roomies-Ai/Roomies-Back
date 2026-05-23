@@ -6,12 +6,11 @@ import {
   UpdateDateColumn,
   OneToMany,
   ManyToMany,
-  ManyToOne,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Task } from './task.entity';
 import { Pet } from './pet.entity';
-import { HouseType } from './house-type.entity';
+import { HouseType } from './house-type.enum';
 import { TaskType } from './task-type.entity';
 
 @Entity('households')
@@ -22,10 +21,7 @@ export class Household {
   @Column()
   name!: string;
 
-  @ManyToOne(() => HouseType, (houseType) => houseType.households, {
-    nullable: true,
-    onDelete: 'SET NULL',
-  })
+  @Column({ type: 'enum', enum: HouseType, nullable: true })
   houseType!: HouseType | null;
 
   @Column({ unique: true, nullable: true, type: 'varchar' })

@@ -14,12 +14,10 @@ import { User } from './models/user.entity';
 import { Task } from './models/task.entity';
 import { Household } from './models/household.entity';
 import { Pet } from './models/pet.entity';
-import { HouseType } from './models/house-type.entity';
 import { TaskType } from './models/task-type.entity';
 import { UsersModule } from './users/users.module';
 import { HouseholdsModule } from './households/households.module';
 import { StatsModule } from './stats/stats.module';
-import { HouseTypesModule } from './house-types/house-types.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { LoggerModule } from './logger/logger.module';
@@ -47,7 +45,7 @@ import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
           database: !databaseUrl
             ? configService.get<string>('DB_NAME')
             : undefined,
-          entities: [User, Task, Household, Pet, HouseType, TaskType],
+          entities: [User, Task, Household, Pet, TaskType],
           synchronize: true, // Note: Set to false in production
           ...(configService.get<string>('DB_IS_SSL') === 'true'
             ? {
@@ -66,7 +64,6 @@ import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
     UsersModule,
     HouseholdsModule,
     StatsModule,
-    HouseTypesModule,
     TelegramModule,
   ],
   controllers: [AppController],
