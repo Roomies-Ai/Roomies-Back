@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -22,6 +23,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { LoggerModule } from './logger/logger.module';
 import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -58,6 +60,7 @@ import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
       },
     }),
 
+    ScheduleModule.forRoot(),
     LoggerModule,
     AuthModule,
     TasksModule,
@@ -65,6 +68,7 @@ import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
     HouseholdsModule,
     StatsModule,
     TelegramModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
