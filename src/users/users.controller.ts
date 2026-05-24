@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Delete,
   Body,
   Req,
   UnauthorizedException,
@@ -137,5 +138,13 @@ export class UsersController {
   async getAvailableTasks(@Req() req: any) {
     const userId = req['user']?.id || req['user']?.userId;
     return this.usersService.getAvailableTaskTypes(userId);
+  }
+
+  @Delete('me/telegram')
+  async unlinkTelegram(@Req() req: any) {
+    const userId = req['user']?.id || req['user']?.userId;
+    if (!userId) throw new UnauthorizedException();
+    await this.usersService.unlinkTelegramChatId(userId);
+    return { message: 'Telegram unlinked' };
   }
 }

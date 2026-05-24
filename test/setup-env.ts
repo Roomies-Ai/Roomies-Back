@@ -1,0 +1,13 @@
+process.env.NODE_ENV = 'test';
+process.env.DB_HOST = 'localhost';
+process.env.DB_PORT = '5433';
+process.env.DB_NAME = 'postgres_test';
+process.env.DB_USERNAME = 'postgres';
+process.env.DB_PASSWORD = 'password';
+process.env.DB_IS_SSL = 'false';
+process.env.BOT_TOKEN = '';
+process.env.JWT_SECRET = 'test-jwt-secret';
+process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
+process.env.GEMINI_API_KEY = 'test';
+process.env.GEMINI_MODEL = 'test';
+process.env.GOOGLE_CLIENT_ID = 'test';
