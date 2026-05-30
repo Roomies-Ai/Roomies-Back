@@ -83,7 +83,7 @@ export class AppModule implements NestModule {
 
     consumer
       .apply(AuthMiddleware)
-      .exclude('auth/(.*)', 'auth', '/')
+      .exclude('auth/(.*)', 'auth', '/', 'google-calendar/callback')
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }
