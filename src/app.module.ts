@@ -24,6 +24,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
 import { LoggerModule } from './logger/logger.module';
 import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
 import { NotificationsModule } from './notifications/notifications.module';
+import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     StatsModule,
     TelegramModule,
     NotificationsModule,
+    GoogleCalendarModule,
   ],
   controllers: [AppController],
   providers: [AppService],
