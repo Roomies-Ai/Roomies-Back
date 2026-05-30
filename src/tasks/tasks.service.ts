@@ -22,6 +22,7 @@ export class TasksService {
     @InjectRepository(Household)
     private householdRepository: Repository<Household>,
     private statsService: StatsService,
+    @Optional() private googleCalendarService: GoogleCalendarService,
   ) {}
 
   async create(createData: Partial<Task>): Promise<Task> {
@@ -31,6 +32,9 @@ export class TasksService {
       this.statsService.clearCache(saved.household.id);
     } else if (createData.household?.id) {
       this.statsService.clearCache(createData.household.id);
+    }
+    if (saved.assignee?.id && saved.dueDate) {
+      this.googleCalendarService?.createCalendarEvent(saved).catch(() => {});
     }
     return saved;
   }
@@ -121,6 +125,12 @@ export class TasksService {
     if (saved.household?.id) {
       this.statsService.clearCache(saved.household.id);
     }
+    const assigneeChanged = 'assignee' in updateData;
+    const dueDateChanged = 'dueDate' in updateData;
+    const contentChanged = 'title' in updateData || 'description' in updateData;
+    if (saved.assignee?.id && saved.dueDate && (assigneeChanged || dueDateChanged || contentChanged)) {
+      this.googleCalendarService?.updateCalendarEvent(saved).catch(() => {});
+    }
     return saved;
   }
 
@@ -131,6 +141,9 @@ export class TasksService {
   async remove(id: string): Promise<void> {
     const task = await this.findOne(id);
     const householdId = task.household?.id;
+    if (task.googleCalendarEventId && task.assignee?.id) {
+      await this.googleCalendarService?.deleteCalendarEvent(task).catch(() => {});
+    }
     await this.taskRepository.remove(task);
     if (householdId) {
       this.statsService.clearCache(householdId);
@@ -235,6 +248,11 @@ export class TasksService {
 
     const saved = await this.taskRepository.save(taskEntities);
     this.statsService.clearCache(householdId);
+    for (const task of saved) {
+      if (task.assignee?.id && task.dueDate) {
+        this.googleCalendarService?.createCalendarEvent(task).catch(() => {});
+      }
+    }
     return saved;
   }
 
