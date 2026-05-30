@@ -82,6 +82,33 @@ export class UsersService {
     return this.findOne(id);
   }
 
+  async saveGoogleCalendarTokens(
+    userId: string,
+    tokens: {
+      googleAccessToken: string;
+      googleRefreshToken: string;
+      googleTokenExpiresAt: Date;
+    },
+  ): Promise<void> {
+    await this.usersRepository.update(userId, {
+      ...tokens,
+      calendarSyncEnabled: true,
+    });
+  }
+
+  async clearGoogleCalendarTokens(userId: string): Promise<void> {
+    await this.usersRepository.update(userId, {
+      googleAccessToken: null,
+      googleRefreshToken: null,
+      googleTokenExpiresAt: null,
+      calendarSyncEnabled: false,
+    });
+  }
+
+  async setCalendarSyncEnabled(userId: string, enabled: boolean): Promise<void> {
+    await this.usersRepository.update(userId, { calendarSyncEnabled: enabled });
+  }
+
   async updatePassword(id: string, oldPass: string, newPass: string): Promise<void> {
     const user = await this.usersRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
