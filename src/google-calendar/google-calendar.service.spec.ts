@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { jest, describe, beforeEach, it, expect } from '@jest/globals';
 import * as jwt from 'jsonwebtoken';
 import { Task } from '../models/task.entity';
 import { User } from '../models/user.entity';
@@ -10,6 +11,48 @@ import { GoogleCalendarService } from './google-calendar.service';
 
 const JWT_SECRET = 'unit-test-secret';
 const MOCK_USER_ID = 'user-uuid-123';
+
+// Each OAuth2 client instance exposes the same underlying mock fns.
+// We create them here so factories can close over them safely —
+// jest.mock hoisting runs before module-level code, but factory
+// functions are evaluated lazily when the module is first imported.
+// Typed as `any` so mockResolvedValue / mockRejectedValue calls in tests
+// don't conflict with googleapis' strict module types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const oauthMocks: any = {
+  generateAuthUrl: jest.fn(),
+  getToken: jest.fn(),
+  refreshAccessToken: jest.fn(),
+  revokeToken: jest.fn(),
+  setCredentials: jest.fn(),
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const calendarMocks: any = {
+  eventsInsert: jest.fn(),
+  eventsPatch: jest.fn(),
+  eventsDelete: jest.fn(),
+};
+
+// jest.mock is hoisted above const declarations, so oauthMocks/calendarMocks are
+// in the TDZ when the factory runs. We access them lazily:
+//   - OAuth2 implementation: closure `() => oauthMocks` is called later (at new OAuth2() time)
+//   - calendar events: ES5 getters defer property access to method-call time
+jest.mock('googleapis', () => ({
+  google: {
+    auth: {
+      OAuth2: jest.fn().mockImplementation(() => oauthMocks),
+    },
+    calendar: jest.fn().mockReturnValue({
+      events: {
+        get insert() { return calendarMocks.eventsInsert; },
+        get patch() { return calendarMocks.eventsPatch; },
+        get delete() { return calendarMocks.eventsDelete; },
+      },
+    }),
+  },
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any));
 
 const makeUser = (overrides: Partial<User> = {}): User =>
   ({
@@ -32,37 +75,6 @@ const makeTask = (overrides: Partial<Task> = {}): Task =>
     ...overrides,
   } as Task);
 
-// Mock googleapis
-const mockEventsInsert = jest.fn();
-const mockEventsPatch = jest.fn();
-const mockEventsDelete = jest.fn();
-const mockGetToken = jest.fn();
-const mockRefreshAccessToken = jest.fn();
-const mockRevokeToken = jest.fn();
-const mockGenerateAuthUrl = jest.fn();
-const mockSetCredentials = jest.fn();
-
-jest.mock('googleapis', () => ({
-  google: {
-    auth: {
-      OAuth2: jest.fn().mockImplementation(() => ({
-        generateAuthUrl: mockGenerateAuthUrl,
-        getToken: mockGetToken,
-        refreshAccessToken: mockRefreshAccessToken,
-        revokeToken: mockRevokeToken,
-        setCredentials: mockSetCredentials,
-      })),
-    },
-    calendar: jest.fn().mockReturnValue({
-      events: {
-        insert: mockEventsInsert,
-        patch: mockEventsPatch,
-        delete: mockEventsDelete,
-      },
-    }),
-  },
-}));
-
 describe('GoogleCalendarService', () => {
   let service: GoogleCalendarService;
   let usersService: jest.Mocked<UsersService>;
@@ -70,6 +82,11 @@ describe('GoogleCalendarService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Restore sensible defaults after clearAllMocks wipes implementations
+    (oauthMocks.generateAuthUrl as any).mockReturnValue('https://accounts.google.com/o/oauth2/auth?mock=1');
+    (oauthMocks.revokeToken as any).mockResolvedValue({});
+    (calendarMocks.eventsPatch as any).mockResolvedValue({ data: {} });
+    (calendarMocks.eventsDelete as any).mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -113,16 +130,14 @@ describe('GoogleCalendarService', () => {
   // ─── generateAuthUrl ──────────────────────────────────────────────────────
 
   describe('generateAuthUrl', () => {
-    it('returns a URL with the Google authorization endpoint', () => {
-      mockGenerateAuthUrl.mockReturnValue('https://accounts.google.com/o/oauth2/auth?foo=bar');
+    it('returns a URL pointing to the Google authorization endpoint', () => {
       const url = service.generateAuthUrl(MOCK_USER_ID);
       expect(url).toContain('accounts.google.com');
     });
 
-    it('passes the calendar.events scope and offline access type', () => {
-      mockGenerateAuthUrl.mockReturnValue('https://accounts.google.com/o/oauth2/auth');
+    it('requests the calendar.events scope with offline access', () => {
       service.generateAuthUrl(MOCK_USER_ID);
-      expect(mockGenerateAuthUrl).toHaveBeenCalledWith(
+      expect(oauthMocks.generateAuthUrl).toHaveBeenCalledWith(
         expect.objectContaining({
           access_type: 'offline',
           prompt: 'consent',
@@ -138,17 +153,12 @@ describe('GoogleCalendarService', () => {
     const validState = () =>
       jwt.sign({ userId: MOCK_USER_ID, nonce: 'abc' }, JWT_SECRET, { expiresIn: '10m' });
 
-    it('saves tokens and enables calendar sync on success', async () => {
-      const state = validState();
-      mockGetToken.mockResolvedValue({
-        tokens: {
-          access_token: 'at',
-          refresh_token: 'rt',
-          expiry_date: 9999999999999,
-        },
+    it('saves tokens when OAuth succeeds', async () => {
+      oauthMocks.getToken.mockResolvedValue({
+        tokens: { access_token: 'at', refresh_token: 'rt', expiry_date: 9_999_999_999_999 },
       });
 
-      await service.handleCallback('auth-code', state);
+      await service.handleCallback('auth-code', validState());
 
       expect(usersService.saveGoogleCalendarTokens).toHaveBeenCalledWith(
         MOCK_USER_ID,
@@ -160,44 +170,49 @@ describe('GoogleCalendarService', () => {
       );
     });
 
-    it('throws BadRequestException when state is tampered', async () => {
+    it('throws BadRequestException when state is signed with the wrong secret', async () => {
       const badState = jwt.sign({ userId: MOCK_USER_ID }, 'wrong-secret');
       await expect(service.handleCallback('code', badState)).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when state is expired', async () => {
+    it('throws BadRequestException when state JWT is expired', async () => {
       const expiredState = jwt.sign({ userId: MOCK_USER_ID, nonce: 'x' }, JWT_SECRET, {
         expiresIn: '1ms',
       });
-      await new Promise((r) => setTimeout(r, 10));
+      await new Promise((r) => setTimeout(r, 20));
       await expect(service.handleCallback('code', expiredState)).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when no refresh_token is returned', async () => {
-      const state = validState();
-      mockGetToken.mockResolvedValue({
+    it('throws BadRequestException when Google returns no refresh_token', async () => {
+      oauthMocks.getToken.mockResolvedValue({
         tokens: { access_token: 'at', expiry_date: 9999 },
       });
-      await expect(service.handleCallback('code', state)).rejects.toThrow(BadRequestException);
+      await expect(service.handleCallback('code', validState())).rejects.toThrow(BadRequestException);
     });
   });
 
   // ─── getStatus ────────────────────────────────────────────────────────────
 
   describe('getStatus', () => {
-    it('returns connected: false when no refresh token exists', async () => {
-      usersService.findUserById.mockResolvedValue(makeUser({ googleRefreshToken: null }));
-      const status = await service.getStatus(MOCK_USER_ID);
-      expect(status).toEqual({ connected: false, calendarSyncEnabled: false });
+    it('returns connected: false when user has no refresh token', async () => {
+      usersService.findUserById.mockResolvedValue(
+        makeUser({ googleRefreshToken: null, calendarSyncEnabled: false }),
+      );
+      expect(await service.getStatus(MOCK_USER_ID)).toEqual({
+        connected: false,
+        calendarSyncEnabled: false,
+      });
     });
 
-    it('returns connected: true and calendarSyncEnabled: true when tokens exist and sync is on', async () => {
+    it('returns connected: true when tokens are present', async () => {
       usersService.findUserById.mockResolvedValue(makeUser({ calendarSyncEnabled: true }));
-      const status = await service.getStatus(MOCK_USER_ID);
-      expect(status).toEqual({ connected: true, calendarSyncEnabled: true });
+      expect(await service.getStatus(MOCK_USER_ID)).toEqual({
+        connected: true,
+        calendarSyncEnabled: true,
+      });
     });
 
-    it('throws NotFoundException when user does not exist', async () => {
+    it('throws NotFoundException when the user does not exist', async () => {
       usersService.findUserById.mockResolvedValue(null);
       await expect(service.getStatus(MOCK_USER_ID)).rejects.toThrow(NotFoundException);
     });
@@ -213,15 +228,13 @@ describe('GoogleCalendarService', () => {
 
     it('flips calendarSyncEnabled from false to true', async () => {
       usersService.findUserById.mockResolvedValue(makeUser({ calendarSyncEnabled: false }));
-      const result = await service.toggleSync(MOCK_USER_ID);
-      expect(result).toEqual({ calendarSyncEnabled: true });
+      expect(await service.toggleSync(MOCK_USER_ID)).toEqual({ calendarSyncEnabled: true });
       expect(usersService.setCalendarSyncEnabled).toHaveBeenCalledWith(MOCK_USER_ID, true);
     });
 
     it('flips calendarSyncEnabled from true to false', async () => {
       usersService.findUserById.mockResolvedValue(makeUser({ calendarSyncEnabled: true }));
-      const result = await service.toggleSync(MOCK_USER_ID);
-      expect(result).toEqual({ calendarSyncEnabled: false });
+      expect(await service.toggleSync(MOCK_USER_ID)).toEqual({ calendarSyncEnabled: false });
       expect(usersService.setCalendarSyncEnabled).toHaveBeenCalledWith(MOCK_USER_ID, false);
     });
   });
@@ -231,14 +244,13 @@ describe('GoogleCalendarService', () => {
   describe('disconnect', () => {
     it('clears all calendar tokens', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockRevokeToken.mockResolvedValue({});
       await service.disconnect(MOCK_USER_ID);
       expect(usersService.clearGoogleCalendarTokens).toHaveBeenCalledWith(MOCK_USER_ID);
     });
 
-    it('still clears tokens even if token revocation fails', async () => {
+    it('still clears tokens even when token revocation fails', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockRevokeToken.mockRejectedValue(new Error('revoke failed'));
+      oauthMocks.revokeToken.mockRejectedValue(new Error('revoke failed'));
       await service.disconnect(MOCK_USER_ID);
       expect(usersService.clearGoogleCalendarTokens).toHaveBeenCalledWith(MOCK_USER_ID);
     });
@@ -249,33 +261,33 @@ describe('GoogleCalendarService', () => {
   describe('createCalendarEvent', () => {
     it('does nothing when task has no dueDate', async () => {
       await service.createCalendarEvent(makeTask({ dueDate: null }));
-      expect(mockEventsInsert).not.toHaveBeenCalled();
+      expect(calendarMocks.eventsInsert).not.toHaveBeenCalled();
     });
 
     it('does nothing when task has no assignee', async () => {
       await service.createCalendarEvent(makeTask({ assignee: null as any }));
-      expect(mockEventsInsert).not.toHaveBeenCalled();
+      expect(calendarMocks.eventsInsert).not.toHaveBeenCalled();
     });
 
     it('does nothing when calendarSyncEnabled is false', async () => {
       usersService.findUserById.mockResolvedValue(makeUser({ calendarSyncEnabled: false }));
       await service.createCalendarEvent(makeTask());
-      expect(mockEventsInsert).not.toHaveBeenCalled();
+      expect(calendarMocks.eventsInsert).not.toHaveBeenCalled();
     });
 
     it('does nothing when user has no refresh token', async () => {
       usersService.findUserById.mockResolvedValue(makeUser({ googleRefreshToken: null }));
       await service.createCalendarEvent(makeTask());
-      expect(mockEventsInsert).not.toHaveBeenCalled();
+      expect(calendarMocks.eventsInsert).not.toHaveBeenCalled();
     });
 
-    it('creates the calendar event and persists the event ID', async () => {
+    it('creates the event and persists the event ID to the task', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockEventsInsert.mockResolvedValue({ data: { id: 'ev123' } });
+      calendarMocks.eventsInsert.mockResolvedValue({ data: { id: 'ev123' } });
 
       await service.createCalendarEvent(makeTask());
 
-      expect(mockEventsInsert).toHaveBeenCalledWith(
+      expect(calendarMocks.eventsInsert).toHaveBeenCalledWith(
         expect.objectContaining({
           calendarId: 'primary',
           requestBody: expect.objectContaining({ summary: 'Clean kitchen' }),
@@ -288,7 +300,7 @@ describe('GoogleCalendarService', () => {
 
     it('swallows Google API errors without rethrowing', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockEventsInsert.mockRejectedValue(new Error('Google API down'));
+      calendarMocks.eventsInsert.mockRejectedValue(new Error('Google API down'));
       await expect(service.createCalendarEvent(makeTask())).resolves.toBeUndefined();
     });
   });
@@ -298,21 +310,20 @@ describe('GoogleCalendarService', () => {
   describe('updateCalendarEvent', () => {
     it('falls back to createCalendarEvent when no eventId exists', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockEventsInsert.mockResolvedValue({ data: { id: 'new-ev' } });
+      calendarMocks.eventsInsert.mockResolvedValue({ data: { id: 'new-ev' } });
 
       await service.updateCalendarEvent(makeTask({ googleCalendarEventId: null }));
 
-      expect(mockEventsInsert).toHaveBeenCalled();
-      expect(mockEventsPatch).not.toHaveBeenCalled();
+      expect(calendarMocks.eventsInsert).toHaveBeenCalled();
+      expect(calendarMocks.eventsPatch).not.toHaveBeenCalled();
     });
 
-    it('patches an existing event', async () => {
+    it('patches an existing calendar event', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockEventsPatch.mockResolvedValue({ data: {} });
 
       await service.updateCalendarEvent(makeTask({ googleCalendarEventId: 'ev-existing' }));
 
-      expect(mockEventsPatch).toHaveBeenCalledWith(
+      expect(calendarMocks.eventsPatch).toHaveBeenCalledWith(
         expect.objectContaining({ eventId: 'ev-existing' }),
       );
     });
@@ -323,41 +334,39 @@ describe('GoogleCalendarService', () => {
   describe('deleteCalendarEvent', () => {
     it('does nothing when task has no googleCalendarEventId', async () => {
       await service.deleteCalendarEvent(makeTask({ googleCalendarEventId: null }));
-      expect(mockEventsDelete).not.toHaveBeenCalled();
+      expect(calendarMocks.eventsDelete).not.toHaveBeenCalled();
     });
 
-    it('deletes the calendar event', async () => {
+    it('deletes the calendar event by eventId', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockEventsDelete.mockResolvedValue({});
 
       await service.deleteCalendarEvent(makeTask({ googleCalendarEventId: 'ev-to-delete' }));
 
-      expect(mockEventsDelete).toHaveBeenCalledWith(
+      expect(calendarMocks.eventsDelete).toHaveBeenCalledWith(
         expect.objectContaining({ eventId: 'ev-to-delete' }),
       );
     });
   });
 
-  // ─── token refresh (getValidOAuth2Client) ─────────────────────────────────
+  // ─── token refresh ────────────────────────────────────────────────────────
 
   describe('token refresh', () => {
     it('refreshes the access token when it is about to expire', async () => {
-      const nearlyExpiredUser = makeUser({
-        googleTokenExpiresAt: new Date(Date.now() + 30_000),
-      });
-      usersService.findUserById.mockResolvedValue(nearlyExpiredUser);
-      mockRefreshAccessToken.mockResolvedValue({
+      usersService.findUserById.mockResolvedValue(
+        makeUser({ googleTokenExpiresAt: new Date(Date.now() + 30_000) }),
+      );
+      oauthMocks.refreshAccessToken.mockResolvedValue({
         credentials: {
           access_token: 'new-at',
           refresh_token: 'refresh-token',
           expiry_date: Date.now() + 3_600_000,
         },
       });
-      mockEventsInsert.mockResolvedValue({ data: { id: 'ev-new' } });
+      calendarMocks.eventsInsert.mockResolvedValue({ data: { id: 'ev-refreshed' } });
 
       await service.createCalendarEvent(makeTask());
 
-      expect(mockRefreshAccessToken).toHaveBeenCalled();
+      expect(oauthMocks.refreshAccessToken).toHaveBeenCalled();
       expect(usersService.saveGoogleCalendarTokens).toHaveBeenCalledWith(
         MOCK_USER_ID,
         expect.objectContaining({ googleAccessToken: 'new-at' }),
@@ -366,11 +375,11 @@ describe('GoogleCalendarService', () => {
 
     it('does not refresh when token is still valid', async () => {
       usersService.findUserById.mockResolvedValue(makeUser());
-      mockEventsInsert.mockResolvedValue({ data: { id: 'ev-ok' } });
+      calendarMocks.eventsInsert.mockResolvedValue({ data: { id: 'ev-ok' } });
 
       await service.createCalendarEvent(makeTask());
 
-      expect(mockRefreshAccessToken).not.toHaveBeenCalled();
+      expect(oauthMocks.refreshAccessToken).not.toHaveBeenCalled();
     });
   });
 });

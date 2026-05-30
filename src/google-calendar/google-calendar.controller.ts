@@ -8,7 +8,6 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { GoogleCalendarService } from './google-calendar.service';
 
@@ -20,8 +19,8 @@ export class GoogleCalendarController {
   ) {}
 
   @Get('connect')
-  connect(@Req() req: Request): { url: string } {
-    const userId = (req as any).user?.userId;
+  connect(@Req() req: any): { url: string } {
+    const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedException();
     const url = this.googleCalendarService.generateAuthUrl(userId);
     return { url };
@@ -31,7 +30,7 @@ export class GoogleCalendarController {
   async callback(
     @Query('code') code: string,
     @Query('state') state: string,
-    @Res() res: Response,
+    @Res() res: any,
   ): Promise<void> {
     await this.googleCalendarService.handleCallback(code, state);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
@@ -39,22 +38,22 @@ export class GoogleCalendarController {
   }
 
   @Get('status')
-  async status(@Req() req: Request): Promise<{ connected: boolean; calendarSyncEnabled: boolean }> {
-    const userId = (req as any).user?.userId;
+  async status(@Req() req: any): Promise<{ connected: boolean; calendarSyncEnabled: boolean }> {
+    const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedException();
     return this.googleCalendarService.getStatus(userId);
   }
 
   @Patch('toggle')
-  async toggle(@Req() req: Request): Promise<{ calendarSyncEnabled: boolean }> {
-    const userId = (req as any).user?.userId;
+  async toggle(@Req() req: any): Promise<{ calendarSyncEnabled: boolean }> {
+    const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedException();
     return this.googleCalendarService.toggleSync(userId);
   }
 
   @Delete('disconnect')
-  async disconnect(@Req() req: Request): Promise<void> {
-    const userId = (req as any).user?.userId;
+  async disconnect(@Req() req: any): Promise<void> {
+    const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedException();
     await this.googleCalendarService.disconnect(userId);
   }

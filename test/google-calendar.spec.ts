@@ -8,39 +8,49 @@ import { AppModule } from '../src/app.module';
 import { GoogleCalendarService } from '../src/google-calendar/google-calendar.service';
 import { describe, beforeAll, afterAll, expect, it, jest } from '@jest/globals';
 
-// Mock googleapis so no real Google HTTP calls are made during E2E tests
+// Typed as `any` to avoid TypeScript conflicts with googleapis' strict module types.
+// All mock return values are fixed for the E2E flow — no per-test reconfiguration needed.
+// Cast each jest.fn() as `any` before chaining mock setups to avoid TypeScript
+// inferring the return type from googleapis' strict module signature.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const mockOAuth2Client = {
+  generateAuthUrl: (jest.fn() as any).mockReturnValue('https://accounts.google.com/o/oauth2/auth?mock=1'),
+  getToken: (jest.fn() as any).mockResolvedValue({
+    tokens: {
+      access_token: 'mock-access-token',
+      refresh_token: 'mock-refresh-token',
+      expiry_date: Date.now() + 3_600_000,
+    },
+  }),
+  refreshAccessToken: (jest.fn() as any).mockResolvedValue({
+    credentials: {
+      access_token: 'refreshed-token',
+      refresh_token: 'mock-refresh-token',
+      expiry_date: Date.now() + 3_600_000,
+    },
+  }),
+  revokeToken: (jest.fn() as any).mockResolvedValue({}),
+  setCredentials: jest.fn(),
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 jest.mock('googleapis', () => ({
   google: {
-    auth: {
-      OAuth2: jest.fn().mockImplementation(() => ({
-        generateAuthUrl: jest.fn().mockReturnValue('https://accounts.google.com/o/oauth2/auth?mock=1'),
-        getToken: jest.fn().mockResolvedValue({
-          tokens: {
-            access_token: 'mock-access-token',
-            refresh_token: 'mock-refresh-token',
-            expiry_date: Date.now() + 3_600_000,
-          },
-        }),
-        refreshAccessToken: jest.fn().mockResolvedValue({
-          credentials: {
-            access_token: 'refreshed-token',
-            refresh_token: 'mock-refresh-token',
-            expiry_date: Date.now() + 3_600_000,
-          },
-        }),
-        revokeToken: jest.fn().mockResolvedValue({}),
-        setCredentials: jest.fn(),
-      })),
-    },
+    auth: { OAuth2: jest.fn().mockImplementation(() => mockOAuth2Client) },
     calendar: jest.fn().mockReturnValue({
       events: {
-        insert: jest.fn().mockResolvedValue({ data: { id: 'mock-event-id' } }),
-        patch: jest.fn().mockResolvedValue({ data: {} }),
-        delete: jest.fn().mockResolvedValue({}),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        insert: (jest.fn() as any).mockResolvedValue({ data: { id: 'mock-event-id' } }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        patch: (jest.fn() as any).mockResolvedValue({ data: {} }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete: (jest.fn() as any).mockResolvedValue({}),
       },
     }),
   },
-}));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any));
 
 const TEST_EMAIL = `gcal-test-${Date.now()}@test.com`;
 const TEST_PASSWORD = 'Password123!';
