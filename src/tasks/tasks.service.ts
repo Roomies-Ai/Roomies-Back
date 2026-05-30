@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { promptGemini } from '../helpers/gemini';
@@ -12,6 +12,7 @@ import { TaskStatus } from '../helpers/consts';
 import { User } from '../models/user.entity';
 import { TaskType } from '../models/task-type.entity';
 import { StatsService } from '../stats/stats.service';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 
 @Injectable()
 export class TasksService {
