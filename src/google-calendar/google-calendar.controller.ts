@@ -34,7 +34,7 @@ export class GoogleCalendarController {
   ): Promise<void> {
     await this.googleCalendarService.handleCallback(code, state);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/settings?calendar=connected`);
+    res.redirect(`${frontendUrl}/profile?calendar=connected`);
   }
 
   @Get('status')
