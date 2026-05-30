@@ -50,6 +50,9 @@ export class Task {
   })
   assignee!: User;
 
+  @Column({ nullable: true, type: 'varchar' })
+  googleCalendarEventId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
