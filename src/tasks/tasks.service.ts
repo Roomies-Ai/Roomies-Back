@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository, Brackets } from 'typeorm';
 import { promptGemini } from '../helpers/gemini';
 import { generateTasksPrompt, generateParseTelegramMessagePrompt } from '../helpers/prompts';
@@ -12,6 +13,7 @@ import { StatsService } from '../stats/stats.service';
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
   constructor(
     @InjectRepository(Task)
     private taskRepository: Repository<Task>,
@@ -200,6 +202,28 @@ export class TasksService {
     const saved = await this.taskRepository.save(taskEntities);
     this.statsService.clearCache(householdId);
     return saved;
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async handleOverdueTasks() {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const overdueTasks = await this.taskRepository.createQueryBuilder('task')
+      .leftJoinAndSelect('task.household', 'household')
+      .where('task.status IN (:...statuses)', { statuses: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] })
+      .andWhere('task.dueDate < :now', { now })
+      .getMany();
+
+    if (overdueTasks.length > 0) {
+      const taskIds = overdueTasks.map(t => t.id);
+      await this.taskRepository.update(taskIds, { status: TaskStatus.OVERDUE });
+
+      const householdIds = new Set(overdueTasks.map(t => t.household?.id).filter(id => id));
+      householdIds.forEach(id => this.statsService.clearCache(id as string));
+
+      this.logger.log(`Updated ${overdueTasks.length} tasks to OVERDUE status.`);
+    }
   }
 
   /**
