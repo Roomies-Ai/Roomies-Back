@@ -11,3 +11,6 @@ process.env.JWT_REFRESH_SECRET = 'test-refresh-secret';
 process.env.GEMINI_API_KEY = 'test';
 process.env.GEMINI_MODEL = 'test';
 process.env.GOOGLE_CLIENT_ID = 'test';
+process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
+process.env.GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:3000/google-calendar/callback';
+process.env.FRONTEND_URL = 'http://localhost:5173';

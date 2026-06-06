@@ -103,7 +103,8 @@ export class AuthService {
     }
 
     try {
-      const { email, name, profilePicture } = await this.getGoogleUserInfo(token);
+      const { email, name, profilePicture } =
+        await this.getGoogleUserInfo(token);
 
       let user = await this.userRepository.findOneBy({ email });
       if (!user) {
@@ -119,7 +120,12 @@ export class AuthService {
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
-      return this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
+      return this.sendAuthResponse(
+        res,
+        new UserDto(user),
+        accessToken,
+        refreshToken,
+      );
     } catch (err: any) {
       throw new BadRequestException(
         'Internal server error during Google authentication',
@@ -149,7 +155,12 @@ export class AuthService {
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
-      return this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
+      return this.sendAuthResponse(
+        res,
+        new UserDto(user),
+        accessToken,
+        refreshToken,
+      );
     } catch (err: any) {
       if (err.code === '23505') {
         // PostgreSQL unique violation code
@@ -180,7 +191,12 @@ export class AuthService {
 
       const { accessToken, refreshToken } = await this.setTokens(user);
 
-      return this.sendAuthResponse(res, new UserDto(user), accessToken, refreshToken);
+      return this.sendAuthResponse(
+        res,
+        new UserDto(user),
+        accessToken,
+        refreshToken,
+      );
     } catch (err: any) {
       throw new BadRequestException(err.message);
     }
@@ -238,7 +254,9 @@ export class AuthService {
     try {
       const refreshTokenSecret = process.env.JWT_REFRESH_SECRET;
       if (!refreshTokenSecret) {
-        throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set');
+        throw new Error(
+          'FATAL: JWT_REFRESH_SECRET environment variable is not set',
+        );
       }
       const payload: any = jwt.verify(refreshToken, refreshTokenSecret);
       const user = await this.userRepository.findOneBy({ id: payload.userId });
