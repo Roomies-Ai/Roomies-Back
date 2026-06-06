@@ -21,8 +21,10 @@ export class GoogleCalendarController {
   @Get('connect')
   connect(@Req() req: any): { url: string } {
     const userId = req.user?.userId;
+
     if (!userId) throw new UnauthorizedException();
     const url = this.googleCalendarService.generateAuthUrl(userId);
+
     return { url };
   }
 
@@ -33,14 +35,18 @@ export class GoogleCalendarController {
     @Res() res: any,
   ): Promise<void> {
     await this.googleCalendarService.handleCallback(code, state);
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     res.redirect(`${frontendUrl}/profile?calendar=connected`);
   }
 
   @Get('status')
-  async status(@Req() req: any): Promise<{ connected: boolean; calendarSyncEnabled: boolean }> {
+  async status(
+    @Req() req: any,
+  ): Promise<{ connected: boolean; calendarSyncEnabled: boolean }> {
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedException();
+
     return this.googleCalendarService.getStatus(userId);
   }
 
@@ -48,6 +54,7 @@ export class GoogleCalendarController {
   async toggle(@Req() req: any): Promise<{ calendarSyncEnabled: boolean }> {
     const userId = req.user?.userId;
     if (!userId) throw new UnauthorizedException();
+
     return this.googleCalendarService.toggleSync(userId);
   }
 

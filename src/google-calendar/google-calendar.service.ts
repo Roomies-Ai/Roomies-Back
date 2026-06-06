@@ -121,7 +121,8 @@ export class GoogleCalendarService {
       if (!task.assignee?.id || !task.dueDate) return;
 
       const assignee = await this.usersService.findUserById(task.assignee.id);
-      if (!assignee?.calendarSyncEnabled || !assignee.googleRefreshToken) return;
+      if (!assignee?.calendarSyncEnabled || !assignee.googleRefreshToken)
+        return;
 
       const auth = await this.getValidOAuth2Client(assignee);
       const calendarClient = google.calendar({ version: 'v3', auth });
@@ -134,7 +135,7 @@ export class GoogleCalendarService {
         requestBody: {
           summary: task.title,
           description: task.description || '',
-          start: { dateTime: task.dueDate.toISOString() },
+          start: { dateTime: new Date(task.dueDate).toISOString() },
           end: { dateTime: endTime.toISOString() },
         },
       });
@@ -145,7 +146,10 @@ export class GoogleCalendarService {
         });
       }
     } catch (err) {
-      this.logger.error(`Failed to create calendar event for task ${task.id}`, err);
+      this.logger.error(
+        `Failed to create calendar event for task ${task.id}`,
+        JSON.stringify(err),
+      );
     }
   }
 
@@ -159,7 +163,8 @@ export class GoogleCalendarService {
       }
 
       const assignee = await this.usersService.findUserById(task.assignee.id);
-      if (!assignee?.calendarSyncEnabled || !assignee.googleRefreshToken) return;
+      if (!assignee?.calendarSyncEnabled || !assignee.googleRefreshToken)
+        return;
 
       const auth = await this.getValidOAuth2Client(assignee);
       const calendarClient = google.calendar({ version: 'v3', auth });
@@ -178,7 +183,10 @@ export class GoogleCalendarService {
         },
       });
     } catch (err) {
-      this.logger.error(`Failed to update calendar event for task ${task.id}`, err);
+      this.logger.error(
+        `Failed to update calendar event for task ${task.id}`,
+        err,
+      );
     }
   }
 
@@ -197,7 +205,10 @@ export class GoogleCalendarService {
         eventId: task.googleCalendarEventId,
       });
     } catch (err) {
-      this.logger.error(`Failed to delete calendar event for task ${task.id}`, err);
+      this.logger.error(
+        `Failed to delete calendar event for task ${task.id}`,
+        err,
+      );
     }
   }
 
@@ -216,7 +227,8 @@ export class GoogleCalendarService {
       const { credentials } = await oauth2Client.refreshAccessToken();
       await this.usersService.saveGoogleCalendarTokens(user.id, {
         googleAccessToken: credentials.access_token!,
-        googleRefreshToken: credentials.refresh_token ?? user.googleRefreshToken!,
+        googleRefreshToken:
+          credentials.refresh_token ?? user.googleRefreshToken!,
         googleTokenExpiresAt: new Date(credentials.expiry_date!),
       });
       oauth2Client.setCredentials(credentials);
