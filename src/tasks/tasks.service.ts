@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository, Brackets } from 'typeorm';
 import { promptGemini } from '../helpers/gemini';
-import { generateTasksPrompt, generateParseTelegramMessagePrompt } from '../helpers/prompts';
+import {
+  generateTasksPrompt,
+  generateParseTelegramMessagePrompt,
+} from '../helpers/prompts';
 import { Task } from '../models/task.entity';
 import { Household } from '../models/household.entity';
 import { TaskStatus } from '../helpers/consts';
 import { User } from '../models/user.entity';
 import { TaskType } from '../models/task-type.entity';
 import { StatsService } from '../stats/stats.service';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 
 @Injectable()
 export class TasksService {
@@ -20,6 +24,7 @@ export class TasksService {
     @InjectRepository(Household)
     private householdRepository: Repository<Household>,
     private statsService: StatsService,
+    @Optional() private googleCalendarService: GoogleCalendarService,
   ) {}
 
   async create(createData: Partial<Task>): Promise<Task> {
@@ -30,6 +35,9 @@ export class TasksService {
     } else if (createData.household?.id) {
       this.statsService.clearCache(createData.household.id);
     }
+    if (saved.assignee?.id && saved.dueDate) {
+      this.googleCalendarService?.createCalendarEvent(saved).catch(() => {});
+    }
     return saved;
   }
 
@@ -38,30 +46,37 @@ export class TasksService {
     if (status) whereCondition.status = status;
     if (householdId) whereCondition.household = { id: householdId };
 
-    return this.taskRepository.find({ where: whereCondition, relations: ['household', 'assignee', 'taskType'] });
+    return this.taskRepository.find({
+      where: whereCondition,
+      relations: ['household', 'assignee', 'taskType'],
+    });
   }
 
   async findMyTasks(userId: string): Promise<Task[]> {
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    return this.taskRepository.createQueryBuilder('task')
+    return this.taskRepository
+      .createQueryBuilder('task')
       .leftJoinAndSelect('task.household', 'household')
       .leftJoinAndSelect('task.assignee', 'assignee')
       .leftJoinAndSelect('task.taskType', 'taskType')
       .where('task.assignee.id = :userId', { userId })
-      .andWhere(new Brackets(qb => {
-        qb.where('task.status != :completed', { completed: TaskStatus.COMPLETED })
-          .orWhere('task.updatedAt > :twoWeeksAgo', { twoWeeksAgo });
-      }))
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where('task.status != :completed', {
+            completed: TaskStatus.COMPLETED,
+          }).orWhere('task.updatedAt > :twoWeeksAgo', { twoWeeksAgo });
+        }),
+      )
       .orderBy('task.dueDate', 'ASC')
       .getMany();
   }
 
   async findOne(id: string): Promise<Task> {
-    const task = await this.taskRepository.findOne({ 
-      where: { id }, 
-      relations: ['household', 'assignee', 'taskType'] 
+    const task = await this.taskRepository.findOne({
+      where: { id },
+      relations: ['household', 'assignee', 'taskType'],
     });
     if (!task) throw new NotFoundException(`Task #${id} not found`);
     return task;
@@ -69,28 +84,36 @@ export class TasksService {
 
   async update(id: string, updateData: any): Promise<Task> {
     const task = await this.findOne(id);
-    
+
     // Resolve relations if IDs are passed as strings
     if (updateData.assignee && typeof updateData.assignee === 'string') {
-      const household = await this.householdRepository.findOne({ 
-        where: { id: task.household.id }, 
-        relations: ['members'] 
+      const household = await this.householdRepository.findOne({
+        where: { id: task.household.id },
+        relations: ['members'],
       });
-      updateData.assignee = household?.members?.find(m => m.id === updateData.assignee || m.username === updateData.assignee) || null;
+      updateData.assignee =
+        household?.members?.find(
+          (m) =>
+            m.id === updateData.assignee || m.username === updateData.assignee,
+        ) || null;
     }
 
     if (updateData.taskType && typeof updateData.taskType === 'string') {
-      const household = await this.householdRepository.findOne({ 
-        where: { id: task.household.id }, 
-        relations: ['taskTypes'] 
+      const household = await this.householdRepository.findOne({
+        where: { id: task.household.id },
+        relations: ['taskTypes'],
       });
-      updateData.taskType = household?.taskTypes?.find(tt => tt.id === updateData.taskType || tt.name === updateData.taskType) || null;
+      updateData.taskType =
+        household?.taskTypes?.find(
+          (tt) =>
+            tt.id === updateData.taskType || tt.name === updateData.taskType,
+        ) || null;
     } else if (updateData.taskType === null) {
       updateData.taskType = null;
     }
 
     // Auto-set status based on due date if assignee is being set and status is pending
-    if (updateData.assignee && (task.status === TaskStatus.PENDING)) {
+    if (updateData.assignee && task.status === TaskStatus.PENDING) {
       const now = new Date();
       if (task.dueDate && task.dueDate < now) {
         task.status = TaskStatus.OVERDUE;
@@ -104,6 +127,12 @@ export class TasksService {
     if (saved.household?.id) {
       this.statsService.clearCache(saved.household.id);
     }
+    const assigneeChanged = 'assignee' in updateData;
+    const dueDateChanged = 'dueDate' in updateData;
+    const contentChanged = 'title' in updateData || 'description' in updateData;
+    if (saved.assignee?.id && saved.dueDate && (assigneeChanged || dueDateChanged || contentChanged)) {
+      this.googleCalendarService?.updateCalendarEvent(saved).catch(() => {});
+    }
     return saved;
   }
 
@@ -114,6 +143,9 @@ export class TasksService {
   async remove(id: string): Promise<void> {
     const task = await this.findOne(id);
     const householdId = task.household?.id;
+    if (task.googleCalendarEventId && task.assignee?.id) {
+      await this.googleCalendarService?.deleteCalendarEvent(task).catch(() => {});
+    }
     await this.taskRepository.remove(task);
     if (householdId) {
       this.statsService.clearCache(householdId);
@@ -126,8 +158,14 @@ export class TasksService {
       throw new NotFoundException(`No assignee found for Task #${id}`);
     }
     // Stub for Telegram API call
-    console.log(`[TELEGRAM API MOCK] Sending nudge to user ${task.assignee.username} for task "${task.title}"`);
-    return { message: 'Nudge sent via Telegram successfully', taskId: id, user: task.assignee.username };
+    console.log(
+      `[TELEGRAM API MOCK] Sending nudge to user ${task.assignee.username} for task "${task.title}"`,
+    );
+    return {
+      message: 'Nudge sent via Telegram successfully',
+      taskId: id,
+      user: task.assignee.username,
+    };
   }
 
   async generateTasks(household: any) {
@@ -135,9 +173,12 @@ export class TasksService {
       const prompt = generateTasksPrompt(household);
       const result = await promptGemini(prompt);
       const text = result.response.text();
-      
+
       // Clean up potential markdown blocks if Gemini returns them
-      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanJson = text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
       return JSON.parse(cleanJson);
     } catch (error) {
       console.error('Failed to generate AI tasks:', error);
@@ -149,13 +190,13 @@ export class TasksService {
    * Process a free-text message from Telegram to extract suggested tasks.
    */
   async processTelegramMessage(householdId: string, message: string) {
-    const household = await this.findHouseholdById(householdId, ['houseType', 'taskTypes']);
+    const household = await this.findHouseholdById(householdId, ['taskTypes']);
 
     if (!household) throw new NotFoundException('Household not found');
 
     const prompt = generateParseTelegramMessagePrompt(message, household);
     const result = await promptGemini(prompt);
-    
+
     try {
       return JSON.parse(result.response.text());
     } catch (e) {
@@ -168,14 +209,18 @@ export class TasksService {
    * Saves a list of tasks for a household.
    */
   async bulkCreateTasks(householdId: string, tasks: any[]) {
-    const household = await this.findHouseholdById(householdId, ['members', 'taskTypes']);
+    const household = await this.findHouseholdById(householdId, [
+      'members',
+      'taskTypes',
+    ]);
     if (!household) throw new NotFoundException('Household not found');
 
-    const taskEntities = tasks.map(t => {
+    const taskEntities = tasks.map((t) => {
       // Resolve assignee if provided as username
       let assignee: User | null = null;
       if (t.assignee && typeof t.assignee === 'string') {
-        assignee = household.members?.find(m => m.username === t.assignee) || null;
+        assignee =
+          household.members?.find((m) => m.username === t.assignee) || null;
       } else if (t.assignee && typeof t.assignee === 'object') {
         assignee = t.assignee;
       }
@@ -184,9 +229,13 @@ export class TasksService {
       let taskType: TaskType | null = null;
       if (t.taskType) {
         if (typeof t.taskType === 'string') {
-          taskType = household.taskTypes?.find(tt => tt.name === t.taskType || tt.id === t.taskType) || null;
+          taskType =
+            household.taskTypes?.find(
+              (tt) => tt.name === t.taskType || tt.id === t.taskType,
+            ) || null;
         } else if (typeof t.taskType === 'object' && t.taskType.id) {
-          taskType = household.taskTypes?.find(tt => tt.id === t.taskType.id) || null;
+          taskType =
+            household.taskTypes?.find((tt) => tt.id === t.taskType.id) || null;
         }
       }
 
@@ -201,6 +250,11 @@ export class TasksService {
 
     const saved = await this.taskRepository.save(taskEntities);
     this.statsService.clearCache(householdId);
+    for (const task of saved) {
+      if (task.assignee?.id && task.dueDate) {
+        this.googleCalendarService?.createCalendarEvent(task).catch(() => {});
+      }
+    }
     return saved;
   }
 
@@ -229,7 +283,10 @@ export class TasksService {
   /**
    * Finds a household by its human-friendly Invite Code.
    */
-  async findHouseholdByInviteCode(inviteCode: string, relations: string[] = []): Promise<Household | null> {
+  async findHouseholdByInviteCode(
+    inviteCode: string,
+    relations: string[] = [],
+  ): Promise<Household | null> {
     return this.householdRepository.findOne({
       where: { inviteCode },
       relations,
@@ -239,9 +296,15 @@ export class TasksService {
   /**
    * Finds a household by its UUID.
    */
-  async findHouseholdById(id: string, relations: string[] = []): Promise<Household | null> {
+  async findHouseholdById(
+    id: string,
+    relations: string[] = [],
+  ): Promise<Household | null> {
     // Only search by UUID if it's a valid UUID format to avoid DB errors
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+    const isUuid =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+        id,
+      );
     if (!isUuid) return null;
 
     return this.householdRepository.findOne({

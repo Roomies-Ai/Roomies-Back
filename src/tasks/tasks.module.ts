@@ -7,12 +7,14 @@ import { User } from '../models/user.entity';
 import { Household } from '../models/household.entity';
 import { FairnessService } from './fairness.service';
 import { StatsModule } from '../stats/stats.module';
+import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
 
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Task, User, Household]),
-        StatsModule
+        StatsModule,
+        GoogleCalendarModule,
     ],
     controllers: [TasksController],
     providers: [TasksService, FairnessService],

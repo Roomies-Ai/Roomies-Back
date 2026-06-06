@@ -38,6 +38,18 @@ export class User {
   @Column({ nullable: true, type: 'varchar' })
   telegramChatId!: string | null;
 
+  @Column({ nullable: true, type: 'varchar' })
+  googleAccessToken!: string | null;
+
+  @Column({ nullable: true, type: 'varchar' })
+  googleRefreshToken!: string | null;
+
+  @Column({ nullable: true, type: 'timestamptz' })
+  googleTokenExpiresAt!: Date | null;
+
+  @Column({ default: false })
+  calendarSyncEnabled!: boolean;
+
   @Column('text', { array: true, default: '{}' })
   vibes!: string[];
 
