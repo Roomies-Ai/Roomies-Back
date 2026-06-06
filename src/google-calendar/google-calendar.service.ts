@@ -96,6 +96,7 @@ export class GoogleCalendarService {
     }
     const next = !user.calendarSyncEnabled;
     await this.usersService.setCalendarSyncEnabled(userId, next);
+
     return { calendarSyncEnabled: next };
   }
 
@@ -159,6 +160,7 @@ export class GoogleCalendarService {
 
       if (!task.googleCalendarEventId) {
         await this.createCalendarEvent(task);
+
         return;
       }
 
