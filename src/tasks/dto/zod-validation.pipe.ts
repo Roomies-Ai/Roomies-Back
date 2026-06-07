@@ -1,5 +1,5 @@
 import { PipeTransform, BadRequestException } from '@nestjs/common';
-import { ZodSchema, ZodError } from 'zod';
+import { ZodSchema } from 'zod';
 
 export class ZodValidationPipe<T> implements PipeTransform {
   constructor(private readonly schema: ZodSchema<T>) {}
@@ -7,7 +7,7 @@ export class ZodValidationPipe<T> implements PipeTransform {
   transform(value: unknown): T {
     const result = this.schema.safeParse(value);
     if (!result.success) {
-      const messages = (result.error as ZodError).errors.map(
+      const messages = result.error.issues.map(
         (e) => `${e.path.join('.')}: ${e.message}`,
       );
       throw new BadRequestException({ message: messages, error: 'Validation failed' });

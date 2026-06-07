@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, Index } from 'typeorm';
 import { TaskStatus } from '../helpers/consts';
 import { RecurrenceRule } from '../helpers/recurrence.helper';
 import { User } from './user.entity';
@@ -59,10 +59,6 @@ export class Task {
 
   @Column({ type: 'uuid', nullable: true })
   recurrenceParentId!: string | null;
-
-  @ManyToOne(() => Task, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'recurrenceParentId' })
-  recurrenceParent!: Task | null;
 
   @CreateDateColumn()
   createdAt!: Date;

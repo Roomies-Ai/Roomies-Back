@@ -7,24 +7,46 @@ import { AppModule } from '../src/app.module';
 import { describe, beforeAll, afterAll, expect, it, jest } from '@jest/globals';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-jest.mock('googleapis', () => ({
-  google: {
-    auth: { OAuth2: jest.fn().mockImplementation(() => ({
-      generateAuthUrl: (jest.fn() as any).mockReturnValue('https://accounts.google.com/mock'),
-      getToken: (jest.fn() as any).mockResolvedValue({ tokens: { access_token: 'tok', refresh_token: 'rtok', expiry_date: Date.now() + 3_600_000 } }),
-      refreshAccessToken: (jest.fn() as any).mockResolvedValue({ credentials: { access_token: 'tok2', refresh_token: 'rtok', expiry_date: Date.now() + 3_600_000 } }),
-      revokeToken: (jest.fn() as any).mockResolvedValue({}),
-      setCredentials: jest.fn(),
-    })) },
-    calendar: jest.fn().mockReturnValue({
-      events: {
-        insert: (jest.fn() as any).mockResolvedValue({ data: { id: 'cal-event-id' } }),
-        patch: (jest.fn() as any).mockResolvedValue({ data: {} }),
-        delete: (jest.fn() as any).mockResolvedValue({}),
+jest.mock(
+  'googleapis',
+  () =>
+    ({
+      google: {
+        auth: {
+          OAuth2: jest.fn().mockImplementation(() => ({
+            generateAuthUrl: (jest.fn() as any).mockReturnValue(
+              'https://accounts.google.com/mock',
+            ),
+            getToken: (jest.fn() as any).mockResolvedValue({
+              tokens: {
+                access_token: 'tok',
+                refresh_token: 'rtok',
+                expiry_date: Date.now() + 3_600_000,
+              },
+            }),
+            refreshAccessToken: (jest.fn() as any).mockResolvedValue({
+              credentials: {
+                access_token: 'tok2',
+                refresh_token: 'rtok',
+                expiry_date: Date.now() + 3_600_000,
+              },
+            }),
+            revokeToken: (jest.fn() as any).mockResolvedValue({}),
+            setCredentials: jest.fn(),
+          })),
+        },
+        calendar: jest.fn().mockReturnValue({
+          events: {
+            insert: (jest.fn() as any).mockResolvedValue({
+              data: { id: 'cal-event-id' },
+            }),
+            patch: (jest.fn() as any).mockResolvedValue({ data: {} }),
+            delete: (jest.fn() as any).mockResolvedValue({}),
+          },
+        }),
       },
-    }),
-  },
-} as any));
+    }) as any,
+);
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const EMAIL = `recurring-${Date.now()}@test.com`;
@@ -50,8 +72,17 @@ describe('Recurring tasks (e2e)', () => {
   });
 
   afterAll(async () => {
-    await dataSource.query('DELETE FROM tasks WHERE household_id IN (SELECT id FROM households WHERE name = $1)', ['RecurringTestHH']);
-    await dataSource.query('DELETE FROM households WHERE name = $1', ['RecurringTestHH']);
+    await dataSource.query(
+      'DELETE FROM tasks WHERE "householdId" IN (SELECT id FROM households WHERE name = $1)',
+      ['RecurringTestHH'],
+    );
+    await dataSource.query(
+      'DELETE FROM users_households_households WHERE "householdsId" IN (SELECT id FROM households WHERE name = $1)',
+      ['RecurringTestHH'],
+    );
+    await dataSource.query('DELETE FROM households WHERE name = $1', [
+      'RecurringTestHH',
+    ]);
     await dataSource.query('DELETE FROM users WHERE email = $1', [EMAIL]);
     await app.close();
   });
@@ -133,7 +164,7 @@ describe('Recurring tasks (e2e)', () => {
     await request(app.getHttpServer())
       .patch(`/tasks/${instanceId}/status`)
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ status: 'COMPLETED' })
+      .send({ status: 'completed' })
       .expect(200);
 
     // Wait for async generation

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RecurrenceRuleSchema } from './recurrence-rule.schema';
+import { createZodDto } from './create-zod-dto';
 
 export const CreateTaskSchema = z.object({
   title: z.string().min(1),
@@ -13,4 +14,4 @@ export const CreateTaskSchema = z.object({
   recurrenceRule: RecurrenceRuleSchema.optional(),
 });
 
-export type CreateTaskDto = z.infer<typeof CreateTaskSchema>;
+export class CreateTaskDto extends createZodDto(CreateTaskSchema) {}

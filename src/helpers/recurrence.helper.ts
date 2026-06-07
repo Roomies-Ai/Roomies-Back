@@ -69,23 +69,7 @@ export function getNextOccurrenceDate(rule: RecurrenceRule, from: Date): Date | 
   return next;
 }
 
-/**
- * Builds a new task instance from a recurring template.
- * The caller is responsible for persisting the result.
- */
-export function buildInstanceFromTemplate<T extends object>(
-  parent: T & {
-    title: string;
-    description: string;
-    points: number;
-    assignee: unknown;
-    taskType: unknown;
-    household: unknown;
-    recurrenceRule: RecurrenceRule | null;
-    id: string;
-  },
-  nextDue: Date,
-): Partial<T> & {
+export interface TaskInstanceData {
   title: string;
   description: string;
   points: number;
@@ -93,7 +77,30 @@ export function buildInstanceFromTemplate<T extends object>(
   recurrenceRule: RecurrenceRule | null;
   recurrenceParentId: string;
   googleCalendarEventId: null;
-} {
+  assignee: unknown;
+  taskType: unknown;
+  household: unknown;
+}
+
+export interface RecurrenceTemplate {
+  id: string;
+  title: string;
+  description: string;
+  points: number;
+  assignee: unknown;
+  taskType: unknown;
+  household: unknown;
+  recurrenceRule: RecurrenceRule | null;
+}
+
+/**
+ * Builds a new task instance from a recurring template.
+ * The caller is responsible for persisting the result.
+ */
+export function buildInstanceFromTemplate(
+  parent: RecurrenceTemplate,
+  nextDue: Date,
+): TaskInstanceData {
   return {
     title: parent.title,
     description: parent.description,
@@ -105,7 +112,7 @@ export function buildInstanceFromTemplate<T extends object>(
     recurrenceParentId: parent.id,
     dueDate: nextDue,
     googleCalendarEventId: null,
-  } as any;
+  };
 }
 
 function applyTimeOfDay(date: Date, timeOfDay?: string): void {

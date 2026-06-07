@@ -1,6 +1,6 @@
 process.env.NODE_ENV = 'test';
 process.env.DB_HOST = 'localhost';
-process.env.DB_PORT = '5433';
+process.env.DB_PORT = '5434';
 process.env.DB_NAME = 'postgres_test';
 process.env.DB_USERNAME = 'postgres';
 process.env.DB_PASSWORD = 'password';
@@ -12,5 +12,6 @@ process.env.GEMINI_API_KEY = 'test';
 process.env.GEMINI_MODEL = 'test';
 process.env.GOOGLE_CLIENT_ID = 'test';
 process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
-process.env.GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:3000/google-calendar/callback';
+process.env.GOOGLE_CALENDAR_REDIRECT_URI =
+  'http://localhost:3000/google-calendar/callback';
 process.env.FRONTEND_URL = 'http://localhost:5173';
