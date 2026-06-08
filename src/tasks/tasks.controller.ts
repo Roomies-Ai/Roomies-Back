@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  Request,
+} from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { FairnessService } from './fairness.service';
 import { TaskStatus } from '../helpers/consts';
@@ -66,12 +76,18 @@ export class TasksController {
   }
 
   @Post('telegram/parse')
-  async parseTelegram(@Body('householdId') householdId: string, @Body('message') message: string) {
+  async parseTelegram(
+    @Body('householdId') householdId: string,
+    @Body('message') message: string,
+  ) {
     return this.tasksService.processTelegramMessage(householdId, message);
   }
 
   @Post('telegram/approve')
-  async approveTelegram(@Body('householdId') householdId: string, @Body('tasks') tasks: any[]) {
+  async approveTelegram(
+    @Body('householdId') householdId: string,
+    @Body('tasks') tasks: any[],
+  ) {
     return this.tasksService.bulkCreateTasks(householdId, tasks);
   }
 

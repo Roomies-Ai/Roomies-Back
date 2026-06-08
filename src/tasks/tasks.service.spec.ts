@@ -29,7 +29,7 @@ const makeTask = (overrides: Partial<Task> = {}): Task =>
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-  } as Task);
+  }) as Task;
 
 const WEEKLY_RULE: RecurrenceRule = {
   frequency: 'WEEKLY',
@@ -41,7 +41,9 @@ const WEEKLY_RULE: RecurrenceRule = {
 // ── Mock factories ────────────────────────────────────────────────────────────
 
 const makeQb = () => ({
-  leftJoinAndSelect: jest.fn<() => ReturnType<typeof makeQb>>().mockReturnThis(),
+  leftJoinAndSelect: jest
+    .fn<() => ReturnType<typeof makeQb>>()
+    .mockReturnThis(),
   where: jest.fn<() => ReturnType<typeof makeQb>>().mockReturnThis(),
   andWhere: jest.fn<() => ReturnType<typeof makeQb>>().mockReturnThis(),
   orderBy: jest.fn<() => ReturnType<typeof makeQb>>().mockReturnThis(),
@@ -49,14 +51,22 @@ const makeQb = () => ({
 });
 
 const mockRepo = () => ({
-  create: jest.fn<(data: Partial<Task>) => Task>().mockImplementation((d) => ({ ...d }) as Task),
-  save: jest.fn<(entity: Task | Partial<Task>) => Promise<Task>>().mockResolvedValue(makeTask()),
+  create: jest
+    .fn<(data: Partial<Task>) => Task>()
+    .mockImplementation((d) => ({ ...d }) as Task),
+  save: jest
+    .fn<(entity: Task | Partial<Task>) => Promise<Task>>()
+    .mockResolvedValue(makeTask()),
   find: jest.fn<() => Promise<Task[]>>().mockResolvedValue([]),
   findOne: jest.fn<() => Promise<Task | null>>().mockResolvedValue(null),
   update: jest.fn<() => Promise<object>>().mockResolvedValue({}),
   delete: jest.fn<() => Promise<object>>().mockResolvedValue({}),
-  remove: jest.fn<(entity: Task) => Promise<Task>>().mockResolvedValue(makeTask()),
-  createQueryBuilder: jest.fn<() => ReturnType<typeof makeQb>>().mockReturnValue(makeQb()),
+  remove: jest
+    .fn<(entity: Task) => Promise<Task>>()
+    .mockResolvedValue(makeTask()),
+  createQueryBuilder: jest
+    .fn<() => ReturnType<typeof makeQb>>()
+    .mockReturnValue(makeQb()),
 });
 
 const mockStatsService = () => ({
@@ -64,9 +74,15 @@ const mockStatsService = () => ({
 });
 
 const mockCalendarService = () => ({
-  createCalendarEvent: jest.fn<(task: Task) => Promise<void>>().mockResolvedValue(undefined),
-  updateCalendarEvent: jest.fn<(task: Task) => Promise<void>>().mockResolvedValue(undefined),
-  deleteCalendarEvent: jest.fn<(task: Task) => Promise<void>>().mockResolvedValue(undefined),
+  createCalendarEvent: jest
+    .fn<(task: Task) => Promise<void>>()
+    .mockResolvedValue(undefined),
+  updateCalendarEvent: jest
+    .fn<(task: Task) => Promise<void>>()
+    .mockResolvedValue(undefined),
+  deleteCalendarEvent: jest
+    .fn<(task: Task) => Promise<void>>()
+    .mockResolvedValue(undefined),
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -99,7 +115,11 @@ describe('TasksService', () => {
 
   describe('create()', () => {
     it('saves a basic task and clears stats cache', async () => {
-      const data = { title: 'Clean', description: 'desc', household: { id: 'hh-uuid' } };
+      const data = {
+        title: 'Clean',
+        description: 'desc',
+        household: { id: 'hh-uuid' },
+      };
       taskRepo.save.mockResolvedValueOnce(makeTask(data as Partial<Task>));
 
       await service.create(data as Partial<Task>);
@@ -109,7 +129,10 @@ describe('TasksService', () => {
     });
 
     it('creates calendar event when assignee + dueDate exist', async () => {
-      const task = makeTask({ assignee: { id: 'user-1' } as any, dueDate: new Date() });
+      const task = makeTask({
+        assignee: { id: 'user-1' } as any,
+        dueDate: new Date(),
+      });
       taskRepo.save.mockResolvedValueOnce(task);
 
       await service.create({} as Partial<Task>);
@@ -121,7 +144,10 @@ describe('TasksService', () => {
       const task = makeTask({ recurrenceRule: WEEKLY_RULE });
       taskRepo.save.mockResolvedValueOnce(task);
 
-      await service.create({ title: 'Weekly clean', recurrenceRule: WEEKLY_RULE } as Partial<Task>);
+      await service.create({
+        title: 'Weekly clean',
+        recurrenceRule: WEEKLY_RULE,
+      } as Partial<Task>);
 
       // scheduleUpcomingInstances calls findOne to get latest existing instance
       expect(taskRepo.findOne).toHaveBeenCalled();
@@ -143,7 +169,10 @@ describe('TasksService', () => {
     it('marks task COMPLETED and saves', async () => {
       const task = makeTask({ id: 'task-1' });
       taskRepo.findOne.mockResolvedValueOnce(task);
-      taskRepo.save.mockResolvedValueOnce({ ...task, status: TaskStatus.COMPLETED });
+      taskRepo.save.mockResolvedValueOnce({
+        ...task,
+        status: TaskStatus.COMPLETED,
+      });
 
       const result = await service.updateStatus('task-1', TaskStatus.COMPLETED);
 
@@ -164,11 +193,14 @@ describe('TasksService', () => {
       });
 
       taskRepo.findOne
-        .mockResolvedValueOnce(instance)   // findOne in updateStatus
-        .mockResolvedValueOnce(template)   // template lookup in generateNextInstanceAfterCompletion
-        .mockResolvedValueOnce(null);      // duplicate check → no existing instance
+        .mockResolvedValueOnce(instance) // findOne in updateStatus
+        .mockResolvedValueOnce(template) // template lookup in generateNextInstanceAfterCompletion
+        .mockResolvedValueOnce(null); // duplicate check → no existing instance
 
-      taskRepo.save.mockResolvedValue({ ...instance, status: TaskStatus.COMPLETED });
+      taskRepo.save.mockResolvedValue({
+        ...instance,
+        status: TaskStatus.COMPLETED,
+      });
 
       await service.updateStatus('inst-1', TaskStatus.COMPLETED);
 
@@ -179,7 +211,10 @@ describe('TasksService', () => {
     it('does NOT generate next instance for non-recurring tasks', async () => {
       const task = makeTask({ id: 'task-1', recurrenceParentId: null });
       taskRepo.findOne.mockResolvedValueOnce(task);
-      taskRepo.save.mockResolvedValueOnce({ ...task, status: TaskStatus.COMPLETED });
+      taskRepo.save.mockResolvedValueOnce({
+        ...task,
+        status: TaskStatus.COMPLETED,
+      });
 
       await service.updateStatus('task-1', TaskStatus.COMPLETED);
 
@@ -234,7 +269,9 @@ describe('TasksService', () => {
   describe('findOne()', () => {
     it('throws NotFoundException when task does not exist', async () => {
       taskRepo.findOne.mockResolvedValueOnce(null);
-      await expect(service.findOne('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
