@@ -3,6 +3,7 @@ import {
   getNextOccurrenceDate,
   buildInstanceFromTemplate,
   RecurrenceRule,
+  RecurrenceFrequency,
 } from './recurrence.helper';
 
 const date = (iso: string) => new Date(iso);
@@ -10,7 +11,10 @@ const date = (iso: string) => new Date(iso);
 describe('getNextOccurrenceDate', () => {
   describe('DAILY', () => {
     it('returns the next day by default', () => {
-      const rule: RecurrenceRule = { frequency: 'DAILY', interval: 1 };
+      const rule: RecurrenceRule = {
+        frequency: RecurrenceFrequency.DAILY,
+        interval: 1,
+      };
       const next = getNextOccurrenceDate(rule, date('2026-01-01T10:00:00Z'));
       expect(next).not.toBeNull();
       expect(next!.getDate()).toBe(2);
@@ -18,14 +22,17 @@ describe('getNextOccurrenceDate', () => {
     });
 
     it('respects interval > 1', () => {
-      const rule: RecurrenceRule = { frequency: 'DAILY', interval: 3 };
+      const rule: RecurrenceRule = {
+        frequency: RecurrenceFrequency.DAILY,
+        interval: 3,
+      };
       const next = getNextOccurrenceDate(rule, date('2026-01-01T00:00:00'));
       expect(next!.getDate()).toBe(4);
     });
 
     it('applies timeOfDay to the result', () => {
       const rule: RecurrenceRule = {
-        frequency: 'DAILY',
+        frequency: RecurrenceFrequency.DAILY,
         interval: 1,
         timeOfDay: '08:30',
       };
@@ -36,7 +43,7 @@ describe('getNextOccurrenceDate', () => {
 
     it('returns null when endDate has passed', () => {
       const rule: RecurrenceRule = {
-        frequency: 'DAILY',
+        frequency: RecurrenceFrequency.DAILY,
         interval: 1,
         endDate: '2026-01-01',
       };
@@ -46,7 +53,7 @@ describe('getNextOccurrenceDate', () => {
 
     it('returns null when next occurrence exceeds endDate', () => {
       const rule: RecurrenceRule = {
-        frequency: 'DAILY',
+        frequency: RecurrenceFrequency.DAILY,
         interval: 5,
         endDate: '2026-01-04',
       };
@@ -59,7 +66,7 @@ describe('getNextOccurrenceDate', () => {
     it('finds the next Sunday when daysOfWeek=[0]', () => {
       // 2026-01-01 is a Monday (day 1), so next Sunday is 2026-01-07
       const rule: RecurrenceRule = {
-        frequency: 'WEEKLY',
+        frequency: RecurrenceFrequency.WEEKLY,
         interval: 1,
         daysOfWeek: [0],
       };
@@ -71,7 +78,7 @@ describe('getNextOccurrenceDate', () => {
     it('finds the closest matching day when multiple daysOfWeek provided', () => {
       // 2026-01-01 is Thursday. Next occurrence of Wed(3) or Fri(5) → Fri 2026-01-02
       const rule: RecurrenceRule = {
-        frequency: 'WEEKLY',
+        frequency: RecurrenceFrequency.WEEKLY,
         interval: 1,
         daysOfWeek: [3, 5],
       };
@@ -82,7 +89,7 @@ describe('getNextOccurrenceDate', () => {
     it('wraps across week boundary', () => {
       // 2026-01-03 is Saturday (day 6). Next Mon (day 1) → 2026-01-05
       const rule: RecurrenceRule = {
-        frequency: 'WEEKLY',
+        frequency: RecurrenceFrequency.WEEKLY,
         interval: 1,
         daysOfWeek: [1],
       };
@@ -93,7 +100,7 @@ describe('getNextOccurrenceDate', () => {
 
     it('returns null when next occurrence is past endDate', () => {
       const rule: RecurrenceRule = {
-        frequency: 'WEEKLY',
+        frequency: RecurrenceFrequency.WEEKLY,
         interval: 1,
         daysOfWeek: [3], // Wednesday
         endDate: '2026-01-05', // Wednesday 2026-01-07 is after this
@@ -105,21 +112,27 @@ describe('getNextOccurrenceDate', () => {
 
   describe('MONTHLY', () => {
     it('returns the same day next month', () => {
-      const rule: RecurrenceRule = { frequency: 'MONTHLY', interval: 1 };
+      const rule: RecurrenceRule = {
+        frequency: RecurrenceFrequency.MONTHLY,
+        interval: 1,
+      };
       const next = getNextOccurrenceDate(rule, date('2026-01-15T00:00:00'));
       expect(next!.getMonth()).toBe(1); // February
       expect(next!.getDate()).toBe(15);
     });
 
     it('respects interval > 1', () => {
-      const rule: RecurrenceRule = { frequency: 'MONTHLY', interval: 3 };
+      const rule: RecurrenceRule = {
+        frequency: RecurrenceFrequency.MONTHLY,
+        interval: 3,
+      };
       const next = getNextOccurrenceDate(rule, date('2026-01-01T00:00:00'));
       expect(next!.getMonth()).toBe(3); // April
     });
 
     it('returns null when past endDate', () => {
       const rule: RecurrenceRule = {
-        frequency: 'MONTHLY',
+        frequency: RecurrenceFrequency.MONTHLY,
         interval: 1,
         endDate: '2026-01-31',
       };
@@ -139,7 +152,7 @@ describe('buildInstanceFromTemplate', () => {
     taskType: { id: 'type-1' },
     household: { id: 'hh-1' },
     recurrenceRule: {
-      frequency: 'WEEKLY' as const,
+      frequency: RecurrenceFrequency.WEEKLY,
       interval: 1,
       daysOfWeek: [0],
     },

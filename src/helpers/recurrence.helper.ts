@@ -1,17 +1,24 @@
-export type RecurrenceFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+export enum RecurrenceFrequency {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+}
 
-export interface RecurrenceRule {
+export type RecurrenceRule = {
   frequency: RecurrenceFrequency;
   interval: number;
   daysOfWeek?: number[]; // 0=Sun … 6=Sat, used with WEEKLY
-  timeOfDay?: string;    // "HH:MM" (24h), applied to generated due dates
-  endDate?: string;      // ISO date string — no instances generated after this
-}
+  timeOfDay?: string; // "HH:MM" (24h), applied to generated due dates
+  endDate?: string; // ISO date string — no instances generated after this
+};
 
 /**
  * Returns the next occurrence date after `from`, or null if the rule has expired.
  */
-export function getNextOccurrenceDate(rule: RecurrenceRule, from: Date): Date | null {
+export function getNextOccurrenceDate(
+  rule: RecurrenceRule,
+  from: Date,
+): Date | null {
   const interval = rule.interval ?? 1;
   let next: Date;
 
@@ -22,14 +29,16 @@ export function getNextOccurrenceDate(rule: RecurrenceRule, from: Date): Date | 
   }
 
   switch (rule.frequency) {
-    case 'DAILY': {
+    case RecurrenceFrequency.DAILY: {
       next = new Date(from);
       next.setDate(next.getDate() + interval);
       break;
     }
 
-    case 'WEEKLY': {
-      const days = rule.daysOfWeek?.length ? [...rule.daysOfWeek].sort((a, b) => a - b) : [from.getDay()];
+    case RecurrenceFrequency.WEEKLY: {
+      const days = rule.daysOfWeek?.length
+        ? [...rule.daysOfWeek].sort((a, b) => a - b)
+        : [from.getDay()];
       next = new Date(from);
       next.setDate(next.getDate() + 1); // start searching from the day after `from`
 
@@ -37,7 +46,10 @@ export function getNextOccurrenceDate(rule: RecurrenceRule, from: Date): Date | 
       for (let i = 0; i < 7 * interval; i++) {
         if (days.includes(next.getDay())) {
           // For interval > 1, only accept hits on the Nth week cycle
-          if (interval === 1 || _weeksFromEpoch(next, days[0]) % interval === 0) {
+          if (
+            interval === 1 ||
+            _weeksFromEpoch(next, days[0]) % interval === 0
+          ) {
             found = true;
             break;
           }
@@ -48,7 +60,7 @@ export function getNextOccurrenceDate(rule: RecurrenceRule, from: Date): Date | 
       break;
     }
 
-    case 'MONTHLY': {
+    case RecurrenceFrequency.MONTHLY: {
       next = new Date(from);
       next.setMonth(next.getMonth() + interval);
       break;
@@ -126,7 +138,9 @@ function applyTimeOfDay(date: Date, timeOfDay?: string): void {
 
 function _weeksFromEpoch(date: Date, anchorDay: number): number {
   const epochStart = new Date(0);
-  const daysFromEpoch = Math.floor((date.getTime() - epochStart.getTime()) / 86_400_000);
+  const daysFromEpoch = Math.floor(
+    (date.getTime() - epochStart.getTime()) / 86_400_000,
+  );
   const adjustedDay = (date.getDay() - anchorDay + 7) % 7;
   return Math.floor((daysFromEpoch - adjustedDay) / 7);
 }
