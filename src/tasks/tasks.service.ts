@@ -1,7 +1,19 @@
-import { Injectable, NotFoundException, Optional, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Optional,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Repository, Brackets, IsNull, Not, LessThan, MoreThanOrEqual } from 'typeorm';
+import {
+  Repository,
+  Brackets,
+  IsNull,
+  Not,
+  LessThan,
+  MoreThanOrEqual,
+} from 'typeorm';
 import { promptGemini } from '../helpers/gemini';
 import {
   generateTasksPrompt,
@@ -14,7 +26,10 @@ import { User } from '../models/user.entity';
 import { TaskType } from '../models/task-type.entity';
 import { StatsService } from '../stats/stats.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
-import { getNextOccurrenceDate, buildInstanceFromTemplate } from '../helpers/recurrence.helper';
+import {
+  getNextOccurrenceDate,
+  buildInstanceFromTemplate,
+} from '../helpers/recurrence.helper';
 import { CreateTaskDto } from './dto/create-task.schema';
 import { UpdateTaskDto } from './dto/update-task.schema';
 
@@ -103,7 +118,11 @@ export class TasksService {
   async update(id: string, updateData: UpdateTaskDto | any): Promise<Task> {
     const task = await this.findOne(id);
 
-    const { clearRecurrence, recurrenceRule: newRule, ...rest } = updateData as UpdateTaskDto & any;
+    const {
+      clearRecurrence,
+      recurrenceRule: newRule,
+      ...rest
+    } = updateData as UpdateTaskDto & any;
 
     // Resolve relations if IDs are passed as strings
     if (rest.assignee && typeof rest.assignee === 'string') {
@@ -113,8 +132,7 @@ export class TasksService {
       });
       rest.assignee =
         household?.members?.find(
-          (m) =>
-            m.id === rest.assignee || m.username === rest.assignee,
+          (m) => m.id === rest.assignee || m.username === rest.assignee,
         ) || null;
     }
 
@@ -125,8 +143,7 @@ export class TasksService {
       });
       rest.taskType =
         household?.taskTypes?.find(
-          (tt) =>
-            tt.id === rest.taskType || tt.name === rest.taskType,
+          (tt) => tt.id === rest.taskType || tt.name === rest.taskType,
         ) || null;
     } else if (rest.taskType === null) {
       rest.taskType = null;
@@ -145,7 +162,8 @@ export class TasksService {
     if (clearRecurrence) {
       rest.recurrenceRule = null;
     } else if (newRule !== undefined) {
-      const ruleChanged = JSON.stringify(task.recurrenceRule) !== JSON.stringify(newRule);
+      const ruleChanged =
+        JSON.stringify(task.recurrenceRule) !== JSON.stringify(newRule);
       if (ruleChanged && task.recurrenceRule) {
         // Drop future pending instances and regenerate
         await this.taskRepository.delete({
@@ -165,13 +183,20 @@ export class TasksService {
     const assigneeChanged = 'assignee' in rest;
     const dueDateChanged = 'dueDate' in rest;
     const contentChanged = 'title' in rest || 'description' in rest;
-    if (saved.assignee?.id && saved.dueDate && (assigneeChanged || dueDateChanged || contentChanged)) {
+    if (
+      saved.assignee?.id &&
+      saved.dueDate &&
+      (assigneeChanged || dueDateChanged || contentChanged)
+    ) {
       this.googleCalendarService?.updateCalendarEvent(saved).catch(() => {});
     }
 
     if (saved.recurrenceRule && (newRule !== undefined || assigneeChanged)) {
       await this.scheduleUpcomingInstances(saved).catch((e) =>
-        this.logger.error('Failed to regenerate recurring instances after update', e),
+        this.logger.error(
+          'Failed to regenerate recurring instances after update',
+          e,
+        ),
       );
     }
 
@@ -185,7 +210,10 @@ export class TasksService {
 
     if (status === TaskStatus.COMPLETED && task.recurrenceParentId) {
       await this.generateNextInstanceAfterCompletion(task).catch((e) =>
-        this.logger.error('Failed to generate next recurring instance on completion', e),
+        this.logger.error(
+          'Failed to generate next recurring instance on completion',
+          e,
+        ),
       );
     }
 
@@ -196,7 +224,9 @@ export class TasksService {
     const task = await this.findOne(id);
     const householdId = task.household?.id;
     if (task.googleCalendarEventId && task.assignee?.id) {
-      await this.googleCalendarService?.deleteCalendarEvent(task).catch(() => {});
+      await this.googleCalendarService
+        ?.deleteCalendarEvent(task)
+        .catch(() => {});
     }
     await this.taskRepository.remove(task);
     if (householdId) {
@@ -305,20 +335,27 @@ export class TasksService {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    const overdueTasks = await this.taskRepository.createQueryBuilder('task')
+    const overdueTasks = await this.taskRepository
+      .createQueryBuilder('task')
       .leftJoinAndSelect('task.household', 'household')
-      .where('task.status IN (:...statuses)', { statuses: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] })
+      .where('task.status IN (:...statuses)', {
+        statuses: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
+      })
       .andWhere('task.dueDate < :now', { now })
       .getMany();
 
     if (overdueTasks.length > 0) {
-      const taskIds = overdueTasks.map(t => t.id);
+      const taskIds = overdueTasks.map((t) => t.id);
       await this.taskRepository.update(taskIds, { status: TaskStatus.OVERDUE });
 
-      const householdIds = new Set(overdueTasks.map(t => t.household?.id).filter(id => id));
-      householdIds.forEach(id => this.statsService.clearCache(id as string));
+      const householdIds = new Set(
+        overdueTasks.map((t) => t.household?.id).filter((id) => id),
+      );
+      householdIds.forEach((id) => this.statsService.clearCache(id as string));
 
-      this.logger.log(`Updated ${overdueTasks.length} tasks to OVERDUE status.`);
+      this.logger.log(
+        `Updated ${overdueTasks.length} tasks to OVERDUE status.`,
+      );
     }
   }
 
@@ -331,7 +368,10 @@ export class TasksService {
 
     for (const template of templates) {
       await this.scheduleUpcomingInstances(template).catch((e) =>
-        this.logger.error(`Failed to generate instances for template ${template.id}`, e),
+        this.logger.error(
+          `Failed to generate instances for template ${template.id}`,
+          e,
+        ),
       );
     }
 
@@ -378,10 +418,13 @@ export class TasksService {
       order: { dueDate: 'DESC' },
     });
 
-    let from = latest?.dueDate ?? (template.dueDate ?? new Date());
+    let from = latest?.dueDate ?? template.dueDate ?? new Date();
 
     while (true) {
-      const next = getNextOccurrenceDate(template.recurrenceRule, new Date(from));
+      const next = getNextOccurrenceDate(
+        template.recurrenceRule,
+        new Date(from),
+      );
       if (!next || next > horizon) break;
 
       const exists = await this.taskRepository.findOne({
@@ -393,14 +436,18 @@ export class TasksService {
         );
         const saved = await this.taskRepository.save(instance);
         if (saved.assignee?.id && saved.dueDate) {
-          this.googleCalendarService?.createCalendarEvent(saved).catch(() => {});
+          this.googleCalendarService
+            ?.createCalendarEvent(saved)
+            .catch(() => {});
         }
       }
       from = next;
     }
   }
 
-  private async generateNextInstanceAfterCompletion(completedInstance: Task): Promise<void> {
+  private async generateNextInstanceAfterCompletion(
+    completedInstance: Task,
+  ): Promise<void> {
     const template = await this.taskRepository.findOne({
       where: { id: completedInstance.recurrenceParentId! },
       relations: ['assignee', 'taskType', 'household'],
