@@ -1,7 +1,19 @@
-import { Injectable, NotFoundException, Optional, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Optional,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Repository, Brackets } from 'typeorm';
+import {
+  Repository,
+  Brackets,
+  IsNull,
+  Not,
+  LessThan,
+  MoreThanOrEqual,
+} from 'typeorm';
 import { promptGemini } from '../helpers/gemini';
 import {
   generateTasksPrompt,
@@ -14,6 +26,14 @@ import { User } from '../models/user.entity';
 import { TaskType } from '../models/task-type.entity';
 import { StatsService } from '../stats/stats.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import {
+  getNextOccurrenceDate,
+  buildInstanceFromTemplate,
+} from '../helpers/recurrence.helper';
+import { CreateTaskDto } from './dto/create-task.schema';
+import { UpdateTaskDto } from './dto/update-task.schema';
+
+const RECURRENCE_LOOKAHEAD_DAYS = 7;
 
 @Injectable()
 export class TasksService {
@@ -27,16 +47,21 @@ export class TasksService {
     @Optional() private googleCalendarService: GoogleCalendarService,
   ) {}
 
-  async create(createData: Partial<Task>): Promise<Task> {
-    const task = this.taskRepository.create(createData);
+  async create(createData: CreateTaskDto | Partial<Task>): Promise<Task> {
+    const task = this.taskRepository.create(createData as Partial<Task>);
     const saved = await this.taskRepository.save(task);
     if (saved.household?.id) {
       this.statsService.clearCache(saved.household.id);
-    } else if (createData.household?.id) {
-      this.statsService.clearCache(createData.household.id);
+    } else if ((createData as any).household?.id) {
+      this.statsService.clearCache((createData as any).household.id);
     }
     if (saved.assignee?.id && saved.dueDate) {
       this.googleCalendarService?.createCalendarEvent(saved).catch(() => {});
+    }
+    if (saved.recurrenceRule) {
+      await this.scheduleUpcomingInstances(saved).catch((e) =>
+        this.logger.error('Failed to pre-generate recurring instances', e),
+      );
     }
     return saved;
   }
@@ -82,38 +107,50 @@ export class TasksService {
     return task;
   }
 
-  async update(id: string, updateData: any): Promise<Task> {
+  async findRecurrenceInstances(templateId: string): Promise<Task[]> {
+    return this.taskRepository.find({
+      where: { recurrenceParentId: templateId },
+      relations: ['assignee', 'taskType'],
+      order: { dueDate: 'ASC' },
+    });
+  }
+
+  async update(id: string, updateData: UpdateTaskDto | any): Promise<Task> {
     const task = await this.findOne(id);
 
+    const {
+      clearRecurrence,
+      recurrenceRule: newRule,
+      ...rest
+    } = updateData as UpdateTaskDto & any;
+
     // Resolve relations if IDs are passed as strings
-    if (updateData.assignee && typeof updateData.assignee === 'string') {
+    if (rest.assignee && typeof rest.assignee === 'string') {
       const household = await this.householdRepository.findOne({
         where: { id: task.household.id },
         relations: ['members'],
       });
-      updateData.assignee =
+      rest.assignee =
         household?.members?.find(
-          (m) =>
-            m.id === updateData.assignee || m.username === updateData.assignee,
+          (m) => m.id === rest.assignee || m.username === rest.assignee,
         ) || null;
     }
 
-    if (updateData.taskType && typeof updateData.taskType === 'string') {
+    if (rest.taskType && typeof rest.taskType === 'string') {
       const household = await this.householdRepository.findOne({
         where: { id: task.household.id },
         relations: ['taskTypes'],
       });
-      updateData.taskType =
+      rest.taskType =
         household?.taskTypes?.find(
-          (tt) =>
-            tt.id === updateData.taskType || tt.name === updateData.taskType,
+          (tt) => tt.id === rest.taskType || tt.name === rest.taskType,
         ) || null;
-    } else if (updateData.taskType === null) {
-      updateData.taskType = null;
+    } else if (rest.taskType === null) {
+      rest.taskType = null;
     }
 
     // Auto-set status based on due date if assignee is being set and status is pending
-    if (updateData.assignee && task.status === TaskStatus.PENDING) {
+    if (rest.assignee && task.status === TaskStatus.PENDING) {
       const now = new Date();
       if (task.dueDate && task.dueDate < now) {
         task.status = TaskStatus.OVERDUE;
@@ -122,29 +159,74 @@ export class TasksService {
       }
     }
 
-    Object.assign(task, updateData);
+    if (clearRecurrence) {
+      rest.recurrenceRule = null;
+    } else if (newRule !== undefined) {
+      const ruleChanged =
+        JSON.stringify(task.recurrenceRule) !== JSON.stringify(newRule);
+      if (ruleChanged && task.recurrenceRule) {
+        // Drop future pending instances and regenerate
+        await this.taskRepository.delete({
+          recurrenceParentId: task.id,
+          status: TaskStatus.PENDING,
+          dueDate: MoreThanOrEqual(new Date()),
+        });
+      }
+      rest.recurrenceRule = newRule;
+    }
+
+    Object.assign(task, rest);
     const saved = await this.taskRepository.save(task);
     if (saved.household?.id) {
       this.statsService.clearCache(saved.household.id);
     }
-    const assigneeChanged = 'assignee' in updateData;
-    const dueDateChanged = 'dueDate' in updateData;
-    const contentChanged = 'title' in updateData || 'description' in updateData;
-    if (saved.assignee?.id && saved.dueDate && (assigneeChanged || dueDateChanged || contentChanged)) {
+    const assigneeChanged = 'assignee' in rest;
+    const dueDateChanged = 'dueDate' in rest;
+    const contentChanged = 'title' in rest || 'description' in rest;
+    if (
+      saved.assignee?.id &&
+      saved.dueDate &&
+      (assigneeChanged || dueDateChanged || contentChanged)
+    ) {
       this.googleCalendarService?.updateCalendarEvent(saved).catch(() => {});
     }
+
+    if (saved.recurrenceRule && (newRule !== undefined || assigneeChanged)) {
+      await this.scheduleUpcomingInstances(saved).catch((e) =>
+        this.logger.error(
+          'Failed to regenerate recurring instances after update',
+          e,
+        ),
+      );
+    }
+
     return saved;
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task> {
-    return this.update(id, { status });
+    const task = await this.findOne(id);
+    task.status = status;
+    const saved = await this.taskRepository.save(task);
+
+    if (status === TaskStatus.COMPLETED && task.recurrenceParentId) {
+      await this.generateNextInstanceAfterCompletion(task).catch((e) =>
+        this.logger.error(
+          'Failed to generate next recurring instance on completion',
+          e,
+        ),
+      );
+    }
+
+    return saved;
   }
 
   async remove(id: string): Promise<void> {
     const task = await this.findOne(id);
     const householdId = task.household?.id;
     if (task.googleCalendarEventId && task.assignee?.id) {
-      await this.googleCalendarService?.deleteCalendarEvent(task).catch(() => {});
+      await this.googleCalendarService
+        ?.deleteCalendarEvent(task)
+        .catch(() => {});
     }
     await this.taskRepository.remove(task);
     if (householdId) {
@@ -157,7 +239,6 @@ export class TasksService {
     if (!task.assignee) {
       throw new NotFoundException(`No assignee found for Task #${id}`);
     }
-    // Stub for Telegram API call
     console.log(
       `[TELEGRAM API MOCK] Sending nudge to user ${task.assignee.username} for task "${task.title}"`,
     );
@@ -174,7 +255,6 @@ export class TasksService {
       const result = await promptGemini(prompt);
       const text = result.response.text();
 
-      // Clean up potential markdown blocks if Gemini returns them
       const cleanJson = text
         .replace(/```json/g, '')
         .replace(/```/g, '')
@@ -186,9 +266,6 @@ export class TasksService {
     }
   }
 
-  /**
-   * Process a free-text message from Telegram to extract suggested tasks.
-   */
   async processTelegramMessage(householdId: string, message: string) {
     const household = await this.findHouseholdById(householdId, ['taskTypes']);
 
@@ -205,9 +282,6 @@ export class TasksService {
     }
   }
 
-  /**
-   * Saves a list of tasks for a household.
-   */
   async bulkCreateTasks(householdId: string, tasks: any[]) {
     const household = await this.findHouseholdById(householdId, [
       'members',
@@ -216,7 +290,6 @@ export class TasksService {
     if (!household) throw new NotFoundException('Household not found');
 
     const taskEntities = tasks.map((t) => {
-      // Resolve assignee if provided as username
       let assignee: User | null = null;
       if (t.assignee && typeof t.assignee === 'string') {
         assignee =
@@ -225,7 +298,6 @@ export class TasksService {
         assignee = t.assignee;
       }
 
-      // Resolve taskType if provided as name or ID
       let taskType: TaskType | null = null;
       if (t.taskType) {
         if (typeof t.taskType === 'string') {
@@ -263,26 +335,49 @@ export class TasksService {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    const overdueTasks = await this.taskRepository.createQueryBuilder('task')
+    const overdueTasks = await this.taskRepository
+      .createQueryBuilder('task')
       .leftJoinAndSelect('task.household', 'household')
-      .where('task.status IN (:...statuses)', { statuses: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] })
+      .where('task.status IN (:...statuses)', {
+        statuses: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS],
+      })
       .andWhere('task.dueDate < :now', { now })
       .getMany();
 
     if (overdueTasks.length > 0) {
-      const taskIds = overdueTasks.map(t => t.id);
+      const taskIds = overdueTasks.map((t) => t.id);
       await this.taskRepository.update(taskIds, { status: TaskStatus.OVERDUE });
 
-      const householdIds = new Set(overdueTasks.map(t => t.household?.id).filter(id => id));
-      householdIds.forEach(id => this.statsService.clearCache(id as string));
+      const householdIds = new Set(
+        overdueTasks.map((t) => t.household?.id).filter((id) => id),
+      );
+      householdIds.forEach((id) => this.statsService.clearCache(id as string));
 
-      this.logger.log(`Updated ${overdueTasks.length} tasks to OVERDUE status.`);
+      this.logger.log(
+        `Updated ${overdueTasks.length} tasks to OVERDUE status.`,
+      );
     }
   }
 
-  /**
-   * Finds a household by its human-friendly Invite Code.
-   */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async generateRecurringInstances() {
+    const templates = await this.taskRepository.find({
+      where: { recurrenceParentId: IsNull(), recurrenceRule: Not(IsNull()) },
+      relations: ['assignee', 'taskType', 'household'],
+    });
+
+    for (const template of templates) {
+      await this.scheduleUpcomingInstances(template).catch((e) =>
+        this.logger.error(
+          `Failed to generate instances for template ${template.id}`,
+          e,
+        ),
+      );
+    }
+
+    this.logger.log(`Processed ${templates.length} recurring task templates.`);
+  }
+
   async findHouseholdByInviteCode(
     inviteCode: string,
     relations: string[] = [],
@@ -293,14 +388,10 @@ export class TasksService {
     });
   }
 
-  /**
-   * Finds a household by its UUID.
-   */
   async findHouseholdById(
     id: string,
     relations: string[] = [],
   ): Promise<Household | null> {
-    // Only search by UUID if it's a valid UUID format to avoid DB errors
     const isUuid =
       /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
         id,
@@ -311,5 +402,73 @@ export class TasksService {
       where: { id },
       relations,
     });
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────────
+
+  private async scheduleUpcomingInstances(template: Task): Promise<void> {
+    if (!template.recurrenceRule) return;
+
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + RECURRENCE_LOOKAHEAD_DAYS);
+
+    // Find the latest existing instance so we don't create duplicates
+    const latest = await this.taskRepository.findOne({
+      where: { recurrenceParentId: template.id },
+      order: { dueDate: 'DESC' },
+    });
+
+    let from = latest?.dueDate ?? template.dueDate ?? new Date();
+
+    while (true) {
+      const next = getNextOccurrenceDate(
+        template.recurrenceRule,
+        new Date(from),
+      );
+      if (!next || next > horizon) break;
+
+      const exists = await this.taskRepository.findOne({
+        where: { recurrenceParentId: template.id, dueDate: next },
+      });
+      if (!exists) {
+        const instance = this.taskRepository.create(
+          buildInstanceFromTemplate(template, next) as Partial<Task>,
+        );
+        const saved = await this.taskRepository.save(instance);
+        if (saved.assignee?.id && saved.dueDate) {
+          this.googleCalendarService
+            ?.createCalendarEvent(saved)
+            .catch(() => {});
+        }
+      }
+      from = next;
+    }
+  }
+
+  private async generateNextInstanceAfterCompletion(
+    completedInstance: Task,
+  ): Promise<void> {
+    const template = await this.taskRepository.findOne({
+      where: { id: completedInstance.recurrenceParentId! },
+      relations: ['assignee', 'taskType', 'household'],
+    });
+    if (!template?.recurrenceRule) return;
+
+    const from = completedInstance.dueDate ?? new Date();
+    const next = getNextOccurrenceDate(template.recurrenceRule, new Date(from));
+    if (!next) return;
+
+    const exists = await this.taskRepository.findOne({
+      where: { recurrenceParentId: template.id, dueDate: next },
+    });
+    if (exists) return;
+
+    const instance = this.taskRepository.create(
+      buildInstanceFromTemplate(template, next) as Partial<Task>,
+    );
+    const saved = await this.taskRepository.save(instance);
+    if (saved.assignee?.id && saved.dueDate) {
+      this.googleCalendarService?.createCalendarEvent(saved).catch(() => {});
+    }
   }
 }

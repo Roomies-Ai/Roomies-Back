@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  Request,
+} from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { FairnessService } from './fairness.service';
-import { Task } from '../models/task.entity';
 import { TaskStatus } from '../helpers/consts';
+import { ZodValidationPipe } from './dto/zod-validation.pipe';
+import { CreateTaskSchema, CreateTaskDto } from './dto/create-task.schema';
+import { UpdateTaskSchema, UpdateTaskDto } from './dto/update-task.schema';
 
 @Controller('tasks')
 export class TasksController {
@@ -18,8 +30,8 @@ export class TasksController {
   }
 
   @Post()
-  create(@Body() createData: Partial<Task>) {
-    return this.tasksService.create(createData);
+  create(@Body(new ZodValidationPipe(CreateTaskSchema)) dto: CreateTaskDto) {
+    return this.tasksService.create(dto);
   }
 
   @Get()
@@ -30,9 +42,17 @@ export class TasksController {
     return this.tasksService.findAll(status, householdId);
   }
 
+  @Get(':id/recurrence')
+  getRecurrenceInstances(@Param('id') id: string) {
+    return this.tasksService.findRecurrenceInstances(id);
+  }
+
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateData: Partial<Task>) {
-    return this.tasksService.update(id, updateData);
+  update(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateTaskSchema)) dto: UpdateTaskDto,
+  ) {
+    return this.tasksService.update(id, dto);
   }
 
   @Delete(':id')
@@ -56,12 +76,18 @@ export class TasksController {
   }
 
   @Post('telegram/parse')
-  async parseTelegram(@Body('householdId') householdId: string, @Body('message') message: string) {
+  async parseTelegram(
+    @Body('householdId') householdId: string,
+    @Body('message') message: string,
+  ) {
     return this.tasksService.processTelegramMessage(householdId, message);
   }
 
   @Post('telegram/approve')
-  async approveTelegram(@Body('householdId') householdId: string, @Body('tasks') tasks: any[]) {
+  async approveTelegram(
+    @Body('householdId') householdId: string,
+    @Body('tasks') tasks: any[],
+  ) {
     return this.tasksService.bulkCreateTasks(householdId, tasks);
   }
 

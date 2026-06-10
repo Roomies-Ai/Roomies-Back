@@ -14,10 +14,11 @@
     "prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "start:docker": "docker-compose up -d",
+    "test:unit": "jest --no-coverage",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "ensure-test-db": "docker compose up -d --build db-test",
+    "ensure-test-db": "docker compose up -d --build --wait db-test",
     "test": "npm run ensure-test-db && jest --config ./test/jest-e2e.json --detectOpenHandles",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "npm run typeorm migration:generate -- -d src/data-source.ts",
@@ -43,7 +44,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "telegraf": "^4.16.3",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -91,8 +93,7 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/src/",
-      "<rootDir>/tests/"
+      "<rootDir>/src/"
     ]
   }
 }
