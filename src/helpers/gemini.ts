@@ -1,9 +1,10 @@
 import { GenerateContentResult, GoogleGenerativeAI } from "@google/generative-ai";
+import { env } from "../config/env";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const promptGemini = async (prompt: string, dynamicModel?: string): Promise<GenerateContentResult> => {
-    const apiKeys = process.env.GEMINI_API_KEY?.split(',').map(key => key.trim()).filter(Boolean) || [];
+    const apiKeys = env.get('GEMINI_API_KEY', { infer: true })?.split(',').map(key => key.trim()).filter(Boolean) || [];
     if (apiKeys.length === 0) {
         throw new Error('GEMINI_API_KEY is not configured in .env');
     }
@@ -13,10 +14,11 @@ export const promptGemini = async (prompt: string, dynamicModel?: string): Promi
 
     for (const apiKey of shuffledKeys) {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelsToTry = [dynamicModel || process.env.GEMINI_MODEL || "gemini-2.5-flash"];
-        
-        if (!dynamicModel && process.env.GEMINI_RETRY_MODEL) {
-            modelsToTry.push(process.env.GEMINI_RETRY_MODEL);
+        const geminiRetryModel = env.get('GEMINI_RETRY_MODEL', { infer: true });
+        const modelsToTry = [dynamicModel || env.get('GEMINI_MODEL', { infer: true }) || "gemini-2.5-flash"];
+
+        if (!dynamicModel && geminiRetryModel) {
+            modelsToTry.push(geminiRetryModel);
         }
 
         for (const modelName of modelsToTry) {
