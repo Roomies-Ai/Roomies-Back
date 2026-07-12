@@ -4,10 +4,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../models/user.entity';
 import { UsersService } from '../users/users.service';
+import { EnvironmentVariables } from '../config/environment-variables.type';
 
 import { UserDto } from '../dtos/user.dto';
 
@@ -17,14 +19,18 @@ export class AuthService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly usersService: UsersService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   async getGoogleUserInfo(accessToken: string) {
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const googleClientId = this.configService.get('GOOGLE_CLIENT_ID', {
+      infer: true,
+    });
+    const client = new OAuth2Client(googleClientId);
     try {
       const tokenInfo = await client.getTokenInfo(accessToken);
 
-      if (tokenInfo.azp !== process.env.GOOGLE_CLIENT_ID) {
+      if (tokenInfo.azp !== googleClientId) {
         throw new Error('Invalid Google Token');
       }
 
@@ -43,10 +49,16 @@ export class AuthService {
   }
 
   generateTokens(userId: string) {
-    const accessTokenSecret = process.env.JWT_SECRET;
-    const refreshTokenSecret = process.env.JWT_REFRESH_SECRET;
-    const accessTokenExp = process.env.JWT_EXP || '15m';
-    const refreshTokenExp = process.env.JWT_REFRESH_EXP || '7d';
+    const accessTokenSecret = this.configService.get('JWT_SECRET', {
+      infer: true,
+    });
+    const refreshTokenSecret = this.configService.get('JWT_REFRESH_SECRET', {
+      infer: true,
+    });
+    const accessTokenExp =
+      this.configService.get('JWT_EXP', { infer: true }) || '15m';
+    const refreshTokenExp =
+      this.configService.get('JWT_REFRESH_EXP', { infer: true }) || '7d';
 
     if (!accessTokenSecret || !refreshTokenSecret) {
       throw new Error(
@@ -83,7 +95,7 @@ export class AuthService {
   ) {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: this.configService.get('NODE_ENV', { infer: true }) === 'production',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -210,7 +222,9 @@ export class AuthService {
     }
 
     try {
-      const refreshTokenSecret = process.env.JWT_REFRESH_SECRET;
+      const refreshTokenSecret = this.configService.get('JWT_REFRESH_SECRET', {
+        infer: true,
+      });
       if (!refreshTokenSecret) {
         throw new BadRequestException(
           'FATAL: JWT_REFRESH_SECRET environment variable is not set',
@@ -234,7 +248,7 @@ export class AuthService {
 
       res.clearCookie('refreshToken', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: this.configService.get('NODE_ENV', { infer: true }) === 'production',
         sameSite: 'strict',
       });
 
@@ -252,7 +266,9 @@ export class AuthService {
     }
 
     try {
-      const refreshTokenSecret = process.env.JWT_REFRESH_SECRET;
+      const refreshTokenSecret = this.configService.get('JWT_REFRESH_SECRET', {
+        infer: true,
+      });
       if (!refreshTokenSecret) {
         throw new Error(
           'FATAL: JWT_REFRESH_SECRET environment variable is not set',

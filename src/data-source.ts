@@ -1,11 +1,12 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
+import { env } from './config/env';
 
 dotenv.config();
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  url: process.env.DATABASE_URL,
+  url: env.get('DATABASE_URL', { infer: true }),
   ssl: {
     rejectUnauthorized: false,
   },

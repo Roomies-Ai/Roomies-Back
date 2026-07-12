@@ -1,6 +1,7 @@
 import { TasksService } from '../../tasks/tasks.service';
 import { UserState } from '../telegram.types';
 import * as keyboards from '../telegram.keyboards';
+import { env } from '../../config/env';
 
 export const handleToggleTask = async (ctx: any, userStates: Map<number, UserState>) => {
   const index = parseInt(ctx.match[1]);
@@ -52,7 +53,7 @@ export const handleCancelTasks = async (ctx: any, userStates: Map<number, UserSt
   const chatId = ctx.from.id;
   const state = userStates.get(chatId);
   if (state) state.pendingTasks = [];
-  const manualUrl = process.env.WEBSITE_MANUAL_URL || 'https://roomies.com';
+  const manualUrl = env.get('WEBSITE_MANUAL_URL', { infer: true }) || 'https://roomies.com';
   await ctx.editMessageText(
     `❌ *Action cancelled.*\n\nYou can always add tasks manually on our website:\n${manualUrl}`,
     { parse_mode: 'Markdown' }

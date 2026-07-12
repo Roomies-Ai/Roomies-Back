@@ -1,8 +1,10 @@
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import { AppLogger } from './logger/app-logger.service';
 import compression from 'compression';
+import { EnvironmentVariables } from './config/environment-variables.type';
 
 async function bootstrap() {
   const logger = new AppLogger('Bootstrap');
@@ -14,6 +16,7 @@ async function bootstrap() {
     origin: true,
     credentials: true,
   });
-  await app.listen(process.env.PORT ?? 3000);
+  const configService = app.get(ConfigService) as ConfigService<EnvironmentVariables>;
+  await app.listen(configService.get('PORT', { infer: true }) ?? 3000);
 }
 bootstrap();

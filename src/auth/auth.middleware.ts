@@ -1,4 +1,8 @@
-import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
@@ -9,9 +13,11 @@ export class AuthMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`AuthMiddleware: No Bearer token found for ${req.method} ${req.url}`);
+      console.log(
+        `AuthMiddleware: No Bearer token found for ${req.method} ${req.url}`,
+      );
       return next();
     }
 
@@ -28,7 +34,10 @@ export class AuthMiddleware implements NestMiddleware {
       req['user'] = decoded;
       next();
     } catch (err) {
-      console.error(`AuthMiddleware: Token validation failed for ${req.method} ${req.url}:`, err.message);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error(
+        `AuthMiddleware: Token validation failed for ${req.method} ${req.url}: ${req.url}. meesage: ${message}`,
+      );
       next();
     }
   }

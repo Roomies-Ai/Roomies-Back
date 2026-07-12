@@ -1,0 +1,24 @@
+export type EnvironmentVariables = {
+  PORT?: string;
+  NODE_ENV?: string;
+  BOT_TOKEN?: string;
+  WEBSITE_MANUAL_URL?: string;
+  JWT_SECRET?: string;
+  JWT_REFRESH_SECRET?: string;
+  JWT_EXP?: string;
+  JWT_REFRESH_EXP?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_CALENDAR_REDIRECT_URI?: string;
+  FRONTEND_URL?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
+  GEMINI_RETRY_MODEL?: string;
+  DATABASE_URL?: string;
+  DB_HOST?: string;
+  DB_PORT?: number;
+  DB_USERNAME?: string;
+  DB_PASSWORD?: string;
+  DB_NAME?: string;
+  DB_IS_SSL?: string;
+};
