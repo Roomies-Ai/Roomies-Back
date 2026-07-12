@@ -6,10 +6,13 @@ import {
   handleBackToSuggestions,
 } from './task.actions';
 import { UserState } from '../telegram.types';
+import { TasksService } from '../../tasks/tasks.service';
 
 const makeCtx = (overrides: Record<string, unknown> = {}) => ({
   reply: jest.fn(),
-  editMessageText: jest.fn().mockResolvedValue(undefined),
+  editMessageText: jest
+    .fn<(...args: unknown[]) => Promise<void>>()
+    .mockResolvedValue(undefined),
   answerCbQuery: jest.fn(),
   from: { id: 123 },
   match: ['toggle_0', '0'],
@@ -53,7 +56,7 @@ describe('task.actions', () => {
         pendingTasks: [{ title: 'Vacuum', isApproved: true }],
       });
       const ctx = makeCtx();
-      (ctx.editMessageText as jest.Mock).mockRejectedValueOnce(
+      (ctx.editMessageText as jest.Mock<(...args: unknown[]) => Promise<void>>).mockRejectedValueOnce(
         new Error('message not modified'),
       );
 
@@ -64,10 +67,12 @@ describe('task.actions', () => {
   });
 
   describe('handleApproveTasks()', () => {
-    let tasksService: { bulkCreateTasks: jest.Mock };
+    let bulkCreateTasks: jest.Mock<TasksService['bulkCreateTasks']>;
+    let tasksService: TasksService;
 
     beforeEach(() => {
-      tasksService = { bulkCreateTasks: jest.fn().mockResolvedValue([]) };
+      bulkCreateTasks = jest.fn<TasksService['bulkCreateTasks']>().mockResolvedValue([]);
+      tasksService = { bulkCreateTasks } as unknown as TasksService;
     });
 
     it('answers when there are no approved tasks', async () => {
@@ -77,10 +82,10 @@ describe('task.actions', () => {
       });
       const ctx = makeCtx();
 
-      await handleApproveTasks(ctx, tasksService as any, userStates);
+      await handleApproveTasks(ctx, tasksService, userStates);
 
       expect(ctx.answerCbQuery).toHaveBeenCalledWith('No tasks selected to approve.');
-      expect(tasksService.bulkCreateTasks).not.toHaveBeenCalled();
+      expect(bulkCreateTasks).not.toHaveBeenCalled();
     });
 
     it('saves only the approved tasks and clears pending state on success', async () => {
@@ -93,9 +98,9 @@ describe('task.actions', () => {
       });
       const ctx = makeCtx();
 
-      await handleApproveTasks(ctx, tasksService as any, userStates);
+      await handleApproveTasks(ctx, tasksService, userStates);
 
-      expect(tasksService.bulkCreateTasks).toHaveBeenCalledWith('hh-1', [
+      expect(bulkCreateTasks).toHaveBeenCalledWith('hh-1', [
         { title: 'Vacuum', isApproved: true },
       ]);
       expect(ctx.editMessageText).toHaveBeenCalledWith(
@@ -110,10 +115,10 @@ describe('task.actions', () => {
         householdId: 'hh-1',
         pendingTasks: [{ title: 'Vacuum', isApproved: true }],
       });
-      tasksService.bulkCreateTasks.mockRejectedValueOnce(new Error('db down'));
+      bulkCreateTasks.mockRejectedValueOnce(new Error('db down'));
       const ctx = makeCtx();
 
-      await handleApproveTasks(ctx, tasksService as any, userStates);
+      await handleApproveTasks(ctx, tasksService, userStates);
 
       expect(ctx.answerCbQuery).toHaveBeenCalledWith('Failed to save tasks.');
     });

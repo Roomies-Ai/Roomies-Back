@@ -1,6 +1,7 @@
 import { jest, describe, beforeEach, it, expect } from '@jest/globals';
 import { handleTextMessage } from './message.handler';
 import { UserState } from '../telegram.types';
+import { TasksService } from '../../tasks/tasks.service';
 
 const makeCtx = (overrides: Record<string, unknown> = {}) => ({
   reply: jest.fn(),
@@ -10,11 +11,13 @@ const makeCtx = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('message.handler', () => {
-  let tasksService: { processTelegramMessage: jest.Mock };
+  let processTelegramMessage: jest.Mock<TasksService['processTelegramMessage']>;
+  let tasksService: TasksService;
   let userStates: Map<number, UserState>;
 
   beforeEach(() => {
-    tasksService = { processTelegramMessage: jest.fn() };
+    processTelegramMessage = jest.fn();
+    tasksService = { processTelegramMessage } as unknown as TasksService;
     userStates = new Map();
   });
 
@@ -22,21 +25,21 @@ describe('message.handler', () => {
     it('ignores messages that start with a slash', async () => {
       const ctx = makeCtx({ message: { text: '/start' } });
 
-      await handleTextMessage(ctx, tasksService as any, userStates);
+      await handleTextMessage(ctx, tasksService, userStates);
 
       expect(ctx.reply).not.toHaveBeenCalled();
-      expect(tasksService.processTelegramMessage).not.toHaveBeenCalled();
+      expect(processTelegramMessage).not.toHaveBeenCalled();
     });
 
     it('asks the user to link a household first when no state exists', async () => {
       const ctx = makeCtx({ message: { text: 'buy milk' } });
 
-      await handleTextMessage(ctx, tasksService as any, userStates);
+      await handleTextMessage(ctx, tasksService, userStates);
 
       expect(ctx.reply).toHaveBeenCalledWith(
         expect.stringContaining('link your household first'),
       );
-      expect(tasksService.processTelegramMessage).not.toHaveBeenCalled();
+      expect(processTelegramMessage).not.toHaveBeenCalled();
     });
 
     describe('custom date input flow', () => {
@@ -48,7 +51,7 @@ describe('message.handler', () => {
         });
         const ctx = makeCtx({ message: { text: '2026-05-10' } });
 
-        await handleTextMessage(ctx, tasksService as any, userStates);
+        await handleTextMessage(ctx, tasksService, userStates);
 
         expect(userStates.get(123)?.awaitingDateForTaskIndex).toBeUndefined();
         expect(ctx.reply).toHaveBeenCalledWith(
@@ -64,7 +67,7 @@ describe('message.handler', () => {
         });
         const ctx = makeCtx({ message: { text: 'not-a-date' } });
 
-        await handleTextMessage(ctx, tasksService as any, userStates);
+        await handleTextMessage(ctx, tasksService, userStates);
 
         expect(ctx.reply).toHaveBeenCalledWith(
           expect.stringContaining('Invalid date format'),
@@ -79,7 +82,7 @@ describe('message.handler', () => {
         });
         const ctx = makeCtx({ message: { text: '2026-05-10' } });
 
-        await handleTextMessage(ctx, tasksService as any, userStates);
+        await handleTextMessage(ctx, tasksService, userStates);
 
         const state = userStates.get(123);
         expect(state?.awaitingDateForTaskIndex).toBeUndefined();
@@ -96,10 +99,10 @@ describe('message.handler', () => {
     describe('normal AI-parse flow', () => {
       it('replies when no tasks could be extracted from the message', async () => {
         userStates.set(123, { householdId: 'hh-1' });
-        tasksService.processTelegramMessage.mockResolvedValueOnce([]);
+        processTelegramMessage.mockResolvedValueOnce([]);
         const ctx = makeCtx({ message: { text: 'buy milk' } });
 
-        await handleTextMessage(ctx, tasksService as any, userStates);
+        await handleTextMessage(ctx, tasksService, userStates);
 
         expect(ctx.reply).toHaveBeenCalledWith(
           expect.stringContaining('Could not find any tasks'),
@@ -108,13 +111,13 @@ describe('message.handler', () => {
 
       it('stores approved pending tasks and shows suggestions on success', async () => {
         userStates.set(123, { householdId: 'hh-1' });
-        tasksService.processTelegramMessage.mockResolvedValueOnce([
+        processTelegramMessage.mockResolvedValueOnce([
           { title: 'Buy milk' },
           { title: 'Clean kitchen' },
         ]);
         const ctx = makeCtx({ message: { text: 'buy milk, clean kitchen' } });
 
-        await handleTextMessage(ctx, tasksService as any, userStates);
+        await handleTextMessage(ctx, tasksService, userStates);
 
         const state = userStates.get(123);
         expect(state?.pendingTasks).toEqual([
@@ -130,10 +133,10 @@ describe('message.handler', () => {
 
       it('replies with a generic error when AI parsing throws', async () => {
         userStates.set(123, { householdId: 'hh-1' });
-        tasksService.processTelegramMessage.mockRejectedValueOnce(new Error('gemini down'));
+        processTelegramMessage.mockRejectedValueOnce(new Error('gemini down'));
         const ctx = makeCtx({ message: { text: 'buy milk' } });
 
-        await handleTextMessage(ctx, tasksService as any, userStates);
+        await handleTextMessage(ctx, tasksService, userStates);
 
         expect(ctx.reply).toHaveBeenCalledWith(
           expect.stringContaining('something went wrong'),

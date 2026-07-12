@@ -27,13 +27,16 @@ const makeTaskType = (overrides: Partial<TaskType> = {}): TaskType =>
 const makeMember = (overrides: Partial<User> = {}): User =>
   ({ id: 'user-1', username: 'jane', preferredTaskTypes: [], ...overrides }) as User;
 
+const makeHousehold = (overrides: Partial<Household> = {}): Household =>
+  ({ id: 'hh-1', members: [makeMember()], ...overrides }) as Household;
+
 const makeTask = (overrides: Partial<Task> = {}): Task =>
   ({
     id: 'task-1',
     title: 'Vacuum',
     points: 3,
     taskType: makeTaskType(),
-    household: { id: 'hh-1', members: [makeMember()] } as Household,
+    household: makeHousehold(),
     ...overrides,
   }) as Task;
 
@@ -75,7 +78,7 @@ describe('FairnessService', () => {
 
   it('returns [] without calling Gemini when the household has no members', async () => {
     taskRepo.findOne.mockResolvedValueOnce(
-      makeTask({ household: { id: 'hh-1', members: [] } as Household }),
+      makeTask({ household: makeHousehold({ members: [] }) }),
     );
 
     const result = await service.getFairnessSuggestions('task-1');
@@ -89,7 +92,7 @@ describe('FairnessService', () => {
     taskRepo.findOne.mockResolvedValueOnce(
       makeTask({
         taskType: null as unknown as TaskType,
-        household: { id: 'hh-1', members: [member] } as Household,
+        household: makeHousehold({ members: [member] }),
       }),
     );
     taskRepo.find.mockResolvedValueOnce([
@@ -110,7 +113,7 @@ describe('FairnessService', () => {
     taskRepo.findOne.mockResolvedValueOnce(
       makeTask({
         taskType: preferredType,
-        household: { id: 'hh-1', members: [member] } as Household,
+        household: makeHousehold({ members: [member] }),
       }),
     );
     taskRepo.find.mockResolvedValueOnce([
@@ -132,7 +135,7 @@ describe('FairnessService', () => {
     const memberA = makeMember({ id: 'user-a' });
     const memberB = makeMember({ id: 'user-b' });
     taskRepo.findOne.mockResolvedValueOnce(
-      makeTask({ household: { id: 'hh-1', members: [memberA, memberB] } as Household }),
+      makeTask({ household: makeHousehold({ members: [memberA, memberB] }) }),
     );
     jest.mocked(promptGemini).mockResolvedValueOnce(makeGeminiResult([]));
 

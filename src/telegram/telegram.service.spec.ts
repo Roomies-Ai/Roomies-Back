@@ -87,7 +87,7 @@ describe('TelegramService', () => {
         {} as UsersService,
         makeConfigService('tok'),
       );
-      (lastBotInstance?.telegram.sendMessage as jest.Mock).mockRejectedValueOnce(
+      lastBotInstance?.telegram.sendMessage.mockRejectedValueOnce(
         new Error('network down'),
       );
 
