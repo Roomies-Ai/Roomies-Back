@@ -2,34 +2,95 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest, describe, beforeEach, it, expect } from '@jest/globals';
+import type { GenerateContentResult } from '@google/generative-ai';
 import { Household } from '../models/household.entity';
 import { User } from '../models/user.entity';
 import { Pet } from '../models/pet.entity';
 import { TaskType } from '../models/task-type.entity';
 import { Task } from '../models/task.entity';
+import { HouseType } from '../models/house-type.enum';
 import { DEFAULT_TASK_TYPES, TaskStatus } from '../helpers/consts';
+import { promptGemini } from '../helpers/gemini';
 import { HouseholdsService } from './households.service';
 
-jest.mock('../helpers/gemini', () => ({
-  promptGemini: jest.fn(),
-}));
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import { promptGemini } from '../helpers/gemini';
+jest.mock('../helpers/gemini');
 
-const makeHousehold = (overrides: Partial<Household> = {}): Household =>
-  ({
-    id: 'hh-uuid',
-    name: 'Test House',
-    houseType: null,
-    inviteCode: 'ABCD1234',
-    members: [],
-    pets: [],
-    taskTypes: [],
-    ...overrides,
-  }) as Household;
+const makeHousehold = (overrides: Partial<Household> = {}): Household => ({
+  id: 'hh-uuid',
+  name: 'Test House',
+  houseType: null,
+  inviteCode: 'ABCD1234',
+  pets: [],
+  members: [],
+  tasks: [],
+  taskTypes: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
 
-const makeUser = (overrides: Partial<User> = {}): User =>
-  ({ id: 'user-uuid', username: 'jane', households: [], ...overrides }) as User;
+const makeUser = (overrides: Partial<User> = {}): User => ({
+  id: 'user-uuid',
+  username: 'jane',
+  email: 'jane@example.com',
+  password: 'hashed-pw',
+  profilePicture: null,
+  phoneNumber: null,
+  telegramToken: null,
+  telegramChatId: null,
+  googleAccessToken: null,
+  googleRefreshToken: null,
+  googleTokenExpiresAt: null,
+  calendarSyncEnabled: false,
+  vibes: [],
+  preferences: {},
+  refreshTokens: [],
+  households: [],
+  assignedTasks: [],
+  preferredTaskTypes: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+const makePet = (overrides: Partial<Pet> = {}): Pet => ({
+  id: 'pet-uuid',
+  name: 'Rex',
+  kind: 'Dog',
+  household: makeHousehold(),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+const makeTaskType = (overrides: Partial<TaskType> = {}): TaskType => ({
+  id: 'task-type-uuid',
+  name: 'General',
+  household: makeHousehold(),
+  tasks: [],
+  preferringUsers: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+const makeTask = (overrides: Partial<Task> = {}): Task => ({
+  id: 'task-uuid',
+  title: 'Task',
+  description: '',
+  status: TaskStatus.PENDING,
+  taskType: makeTaskType(),
+  dueDate: null,
+  points: 1,
+  household: makeHousehold(),
+  assignee: makeUser(),
+  googleCalendarEventId: null,
+  recurrenceRule: null,
+  recurrenceParentId: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
 
 const makeQb = () => ({
   where: jest.fn().mockReturnThis(),
@@ -37,40 +98,66 @@ const makeQb = () => ({
   leftJoinAndSelect: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
   loadRelationCountAndMap: jest.fn().mockReturnThis(),
-  getMany: jest.fn().mockResolvedValue([]),
+  getMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
 });
 
 const mockHouseholdRepo = () => ({
-  create: jest.fn().mockImplementation((d: Partial<Household>) => ({ ...d }) as Household),
-  save: jest.fn().mockImplementation((h: Partial<Household>) => Promise.resolve(h as Household)),
-  find: jest.fn().mockResolvedValue([]),
-  findOne: jest.fn().mockResolvedValue(null),
-  createQueryBuilder: jest.fn().mockImplementation(() => makeQb()),
+  create: jest
+    .fn<(data: Partial<Household>) => Household>()
+    .mockImplementation((d) => makeHousehold(d)),
+  save: jest
+    .fn<(household: Household) => Promise<Household>>()
+    .mockImplementation((h) => Promise.resolve(h)),
+  find: jest
+    .fn<(options: object) => Promise<Household[]>>()
+    .mockResolvedValue([]),
+  findOne: jest
+    .fn<(options: object) => Promise<Household | null>>()
+    .mockResolvedValue(null),
+  createQueryBuilder: jest
+    .fn<() => ReturnType<typeof makeQb>>()
+    .mockImplementation(() => makeQb()),
 });
 
 const mockUserRepo = () => ({
-  findOneBy: jest.fn(),
-  findOne: jest.fn(),
-  save: jest.fn().mockImplementation((u: Partial<User>) => Promise.resolve(u as User)),
+  findOneBy: jest.fn<(where: object) => Promise<User | null>>(),
+  findOne: jest.fn<(options: object) => Promise<User | null>>(),
+  save: jest
+    .fn<(user: User) => Promise<User>>()
+    .mockImplementation((u) => Promise.resolve(u)),
 });
 
 const mockPetRepo = () => ({
-  create: jest.fn().mockImplementation((d: Partial<Pet>) => ({ ...d }) as Pet),
-  save: jest.fn().mockImplementation((p: Partial<Pet> | Partial<Pet>[]) => Promise.resolve(p)),
-  findOne: jest.fn(),
-  findOneBy: jest.fn(),
-  update: jest.fn().mockResolvedValue({}),
-  delete: jest.fn().mockResolvedValue({ affected: 1 }),
+  create: jest
+    .fn<(data: Partial<Pet>) => Pet>()
+    .mockImplementation((d) => makePet(d)),
+  save: jest
+    .fn<(pet: Pet | Pet[]) => Promise<Pet | Pet[]>>()
+    .mockImplementation((p) => Promise.resolve(p)),
+  findOne: jest.fn<(options: object) => Promise<Pet | null>>(),
+  findOneBy: jest.fn<(where: object) => Promise<Pet | null>>(),
+  update: jest
+    .fn<(id: string, data: object) => Promise<object>>()
+    .mockResolvedValue({}),
+  delete: jest
+    .fn<(where: object) => Promise<{ affected: number | null }>>()
+    .mockResolvedValue({ affected: 1 }),
 });
 
 const mockTaskTypeRepo = () => ({
-  create: jest.fn().mockImplementation((d: Partial<TaskType>) => ({ ...d }) as TaskType),
-  save: jest.fn().mockImplementation((t: Partial<TaskType> | Partial<TaskType>[]) => Promise.resolve(t)),
+  create: jest
+    .fn<(data: Partial<TaskType>) => TaskType>()
+    .mockImplementation((d) => makeTaskType(d)),
+  save: jest
+    .fn<(taskType: TaskType | TaskType[]) => Promise<TaskType | TaskType[]>>()
+    .mockImplementation((t) => Promise.resolve(t)),
 });
 
 const mockTaskRepo = () => ({
-  find: jest.fn().mockResolvedValue([]),
-  save: jest.fn().mockImplementation((t: Partial<Task> | Partial<Task>[]) => Promise.resolve(t)),
+  find: jest.fn<() => Promise<Task[]>>().mockResolvedValue([]),
+  save: jest
+    .fn<(task: Task | Task[]) => Promise<Task | Task[]>>()
+    .mockImplementation((t) => Promise.resolve(t)),
 });
 
 describe('HouseholdsService', () => {
@@ -106,11 +193,20 @@ describe('HouseholdsService', () => {
   // ── create() ─────────────────────────────────────────────────────────────
 
   describe('create()', () => {
+    let generateInviteCodeSpy: jest.SpiedFunction<
+      typeof service.generateInviteCode
+    >;
+    let findOneSpy: jest.SpiedFunction<typeof service.findOne>;
+
     beforeEach(() => {
-      jest.spyOn(service, 'generateInviteCode').mockResolvedValue(makeHousehold());
-      jest.spyOn(service, 'findOne').mockResolvedValue(makeHousehold());
-      householdRepo.save.mockImplementation((h: Partial<Household>) =>
-        Promise.resolve({ ...h, id: 'hh-uuid' } as Household),
+      generateInviteCodeSpy = jest
+        .spyOn(service, 'generateInviteCode')
+        .mockResolvedValue(makeHousehold());
+      findOneSpy = jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValue(makeHousehold());
+      householdRepo.save.mockImplementation((h) =>
+        Promise.resolve({ ...h, id: 'hh-uuid' }),
       );
     });
 
@@ -128,7 +224,9 @@ describe('HouseholdsService', () => {
       await service.create({ name: 'My House' }, 'user-uuid');
 
       expect(householdRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ members: [expect.objectContaining({ id: 'user-uuid' })] }),
+        expect.objectContaining({
+          members: [expect.objectContaining({ id: 'user-uuid' })],
+        }),
       );
     });
 
@@ -170,8 +268,8 @@ describe('HouseholdsService', () => {
     it('generates an invite code and returns the fully-loaded household', async () => {
       const result = await service.create({ name: 'My House' });
 
-      expect(service.generateInviteCode).toHaveBeenCalledWith('hh-uuid');
-      expect(service.findOne).toHaveBeenCalledWith('hh-uuid');
+      expect(generateInviteCodeSpy).toHaveBeenCalledWith('hh-uuid');
+      expect(findOneSpy).toHaveBeenCalledWith('hh-uuid');
       expect(result).toEqual(makeHousehold());
     });
   });
@@ -187,7 +285,14 @@ describe('HouseholdsService', () => {
 
       expect(householdRepo.findOne).toHaveBeenCalledWith({
         where: { id: 'hh-uuid' },
-        relations: ['members', 'tasks', 'tasks.assignee', 'tasks.taskType', 'pets', 'taskTypes'],
+        relations: [
+          'members',
+          'tasks',
+          'tasks.assignee',
+          'tasks.taskType',
+          'pets',
+          'taskTypes',
+        ],
       });
       expect(result).toBe(household);
     });
@@ -195,7 +300,9 @@ describe('HouseholdsService', () => {
     it('throws NotFoundException when the household does not exist', async () => {
       householdRepo.findOne.mockResolvedValueOnce(null);
 
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -204,8 +311,8 @@ describe('HouseholdsService', () => {
   describe('findByUserId()', () => {
     it('basic view: builds a query with taskCount relation-count mapping', async () => {
       const qb = makeQb();
-      qb.getMany.mockResolvedValueOnce([{ id: 'hh-1', name: 'House 1' }] as any);
-      householdRepo.createQueryBuilder.mockReturnValueOnce(qb as any);
+      qb.getMany.mockResolvedValueOnce([{ id: 'hh-1', name: 'House 1' }]);
+      householdRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
       const result = await service.findByUserId('user-uuid');
 
@@ -229,10 +336,13 @@ describe('HouseholdsService', () => {
     });
 
     it('full view: queries full relations for the user households found', async () => {
-      householdRepo.find.mockResolvedValueOnce([{ id: 'hh-1' }, { id: 'hh-2' }] as any);
+      householdRepo.find.mockResolvedValueOnce([
+        makeHousehold({ id: 'hh-1' }),
+        makeHousehold({ id: 'hh-2' }),
+      ]);
       const qb = makeQb();
       qb.getMany.mockResolvedValueOnce([makeHousehold({ id: 'hh-1' })]);
-      householdRepo.createQueryBuilder.mockReturnValueOnce(qb as any);
+      householdRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
       const result = await service.findByUserId('user-uuid', true);
 
@@ -253,12 +363,19 @@ describe('HouseholdsService', () => {
         .spyOn(service, 'findOne')
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(updated);
-      householdRepo.save.mockResolvedValueOnce({ ...existing, id: 'hh-uuid' } as Household);
-      (promptGemini as jest.Mock).mockResolvedValueOnce({
-        response: { text: () => JSON.stringify([{ title: 'Task A' }]) },
-      });
+      householdRepo.save.mockResolvedValueOnce({ ...existing, id: 'hh-uuid' });
+      const geminiResult: GenerateContentResult = {
+        response: {
+          text: () => JSON.stringify([{ title: 'Task A' }]),
+          functionCall: () => undefined,
+          functionCalls: () => undefined,
+        },
+      };
+      jest.mocked(promptGemini).mockResolvedValueOnce(geminiResult);
 
-      const result = await service.submitOnboarding('hh-uuid', { name: 'New Name' });
+      const result = await service.submitOnboarding('hh-uuid', {
+        name: 'New Name',
+      });
 
       expect(householdRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'New Name' }),
@@ -271,9 +388,13 @@ describe('HouseholdsService', () => {
     });
 
     it('propagates NotFoundException when the household does not exist', async () => {
-      jest.spyOn(service, 'findOne').mockRejectedValueOnce(new NotFoundException());
+      jest
+        .spyOn(service, 'findOne')
+        .mockRejectedValueOnce(new NotFoundException());
 
-      await expect(service.submitOnboarding('missing', {})).rejects.toThrow(NotFoundException);
+      await expect(service.submitOnboarding('missing', {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -287,7 +408,9 @@ describe('HouseholdsService', () => {
       const result = await service.generateInviteCode('hh-uuid');
 
       expect(householdRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ inviteCode: expect.stringMatching(/^[0-9A-F]{8}$/) }),
+        expect.objectContaining({
+          inviteCode: expect.stringMatching(/^[0-9A-F]{8}$/),
+        }),
       );
       expect(result).toBeDefined();
     });
@@ -310,18 +433,18 @@ describe('HouseholdsService', () => {
     it('throws NotFoundException for an unknown invite code', async () => {
       householdRepo.findOne.mockResolvedValueOnce(null);
 
-      await expect(service.joinByInviteCode('user-uuid', 'BADCODE1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.joinByInviteCode('user-uuid', 'BADCODE1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws NotFoundException when the user does not exist', async () => {
       householdRepo.findOne.mockResolvedValueOnce(makeHousehold());
       userRepo.findOne.mockResolvedValueOnce(null);
 
-      await expect(service.joinByInviteCode('missing-user', 'ABCD1234')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.joinByInviteCode('missing-user', 'ABCD1234'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when already a member', async () => {
@@ -331,9 +454,9 @@ describe('HouseholdsService', () => {
         makeUser({ households: [makeHousehold({ id: 'hh-uuid' })] }),
       );
 
-      await expect(service.joinByInviteCode('user-uuid', 'ABCD1234')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.joinByInviteCode('user-uuid', 'ABCD1234'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('adds the household to the user and returns the refreshed household', async () => {
@@ -360,12 +483,17 @@ describe('HouseholdsService', () => {
 
       await service.addTaskType('hh-uuid', 'Gardening');
 
-      expect(taskTypeRepo.create).toHaveBeenCalledWith({ name: 'Gardening', household });
+      expect(taskTypeRepo.create).toHaveBeenCalledWith({
+        name: 'Gardening',
+        household,
+      });
       expect(taskTypeRepo.save).toHaveBeenCalled();
     });
 
     it('propagates NotFoundException when the household is missing', async () => {
-      jest.spyOn(service, 'findOne').mockRejectedValueOnce(new NotFoundException());
+      jest
+        .spyOn(service, 'findOne')
+        .mockRejectedValueOnce(new NotFoundException());
 
       await expect(service.addTaskType('missing', 'Gardening')).rejects.toThrow(
         NotFoundException,
@@ -380,9 +508,9 @@ describe('HouseholdsService', () => {
       jest.spyOn(service, 'findOne').mockResolvedValueOnce(makeHousehold());
       userRepo.findOne.mockResolvedValueOnce(null);
 
-      await expect(service.removeUser('hh-uuid', 'missing-user')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.removeUser('hh-uuid', 'missing-user'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when the user is not a member', async () => {
@@ -395,10 +523,16 @@ describe('HouseholdsService', () => {
     });
 
     it('removes the household from the user and unassigns their tasks', async () => {
-      jest.spyOn(service, 'findOne').mockResolvedValueOnce(makeHousehold({ id: 'hh-uuid' }));
+      jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValueOnce(makeHousehold({ id: 'hh-uuid' }));
       const user = makeUser({ households: [makeHousehold({ id: 'hh-uuid' })] });
       userRepo.findOne.mockResolvedValueOnce(user);
-      const staleTask = { id: 'task-1', assignee: user, status: TaskStatus.IN_PROGRESS } as unknown as Task;
+      const staleTask = makeTask({
+        id: 'task-1',
+        assignee: user,
+        status: TaskStatus.IN_PROGRESS,
+      });
       taskRepo.find.mockResolvedValueOnce([staleTask]);
 
       await service.removeUser('hh-uuid', 'user-uuid');
@@ -411,7 +545,9 @@ describe('HouseholdsService', () => {
     });
 
     it('skips the task save call when the user has no assigned tasks', async () => {
-      jest.spyOn(service, 'findOne').mockResolvedValueOnce(makeHousehold({ id: 'hh-uuid' }));
+      jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValueOnce(makeHousehold({ id: 'hh-uuid' }));
       const user = makeUser({ households: [makeHousehold({ id: 'hh-uuid' })] });
       userRepo.findOne.mockResolvedValueOnce(user);
       taskRepo.find.mockResolvedValueOnce([]);
@@ -431,7 +567,11 @@ describe('HouseholdsService', () => {
 
       await service.addPet('hh-uuid', { name: 'Rex', kind: 'Dog' });
 
-      expect(petRepo.create).toHaveBeenCalledWith({ name: 'Rex', kind: 'Dog', household });
+      expect(petRepo.create).toHaveBeenCalledWith({
+        name: 'Rex',
+        kind: 'Dog',
+        household,
+      });
       expect(petRepo.save).toHaveBeenCalled();
     });
   });
@@ -448,20 +588,26 @@ describe('HouseholdsService', () => {
 
     it('updates and re-fetches the pet on success', async () => {
       jest.spyOn(service, 'findOne').mockResolvedValueOnce(makeHousehold());
-      petRepo.findOne.mockResolvedValueOnce({ id: 'pet-1' } as Pet);
-      petRepo.findOneBy.mockResolvedValueOnce({ id: 'pet-1', name: 'Updated' } as Pet);
+      petRepo.findOne.mockResolvedValueOnce(makePet({ id: 'pet-1' }));
+      petRepo.findOneBy.mockResolvedValueOnce(
+        makePet({ id: 'pet-1', name: 'Updated' }),
+      );
 
-      const result = await service.updatePet('hh-uuid', 'pet-1', { name: 'Updated' });
+      const result = await service.updatePet('hh-uuid', 'pet-1', {
+        name: 'Updated',
+      });
 
       expect(petRepo.update).toHaveBeenCalledWith('pet-1', { name: 'Updated' });
-      expect(result).toEqual({ id: 'pet-1', name: 'Updated' });
+      expect(result).toEqual(
+        expect.objectContaining({ id: 'pet-1', name: 'Updated' }),
+      );
     });
   });
 
   describe('removePet()', () => {
     it('throws NotFoundException when nothing was deleted', async () => {
       jest.spyOn(service, 'findOne').mockResolvedValueOnce(makeHousehold());
-      petRepo.delete.mockResolvedValueOnce({ affected: 0 } as any);
+      petRepo.delete.mockResolvedValueOnce({ affected: 0 });
 
       await expect(service.removePet('hh-uuid', 'missing-pet')).rejects.toThrow(
         NotFoundException,
@@ -470,9 +616,11 @@ describe('HouseholdsService', () => {
 
     it('resolves without error when the pet is deleted', async () => {
       jest.spyOn(service, 'findOne').mockResolvedValueOnce(makeHousehold());
-      petRepo.delete.mockResolvedValueOnce({ affected: 1 } as any);
+      petRepo.delete.mockResolvedValueOnce({ affected: 1 });
 
-      await expect(service.removePet('hh-uuid', 'pet-1')).resolves.toBeUndefined();
+      await expect(
+        service.removePet('hh-uuid', 'pet-1'),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -480,7 +628,7 @@ describe('HouseholdsService', () => {
 
   describe('removeHouseType()', () => {
     it('sets houseType to null and returns the refreshed household', async () => {
-      const household = makeHousehold({ houseType: 'apartment' as any });
+      const household = makeHousehold({ houseType: HouseType.APARTMENT });
       const refreshed = makeHousehold({ houseType: null });
       jest
         .spyOn(service, 'findOne')
