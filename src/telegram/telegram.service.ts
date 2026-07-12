@@ -1,9 +1,11 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Telegraf } from 'telegraf';
 import { TasksService } from '../tasks/tasks.service';
 import { UsersService } from '../users/users.service';
 import { UserState } from './telegram.types';
 import { TelegramHandlers } from './telegram.handlers';
+import { EnvironmentVariables } from '../config/environment-variables.type';
 
 @Injectable()
 export class TelegramService implements OnModuleInit {
@@ -15,8 +17,9 @@ export class TelegramService implements OnModuleInit {
   constructor(
     private readonly tasksService: TasksService,
     private readonly usersService: UsersService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {
-    const token = process.env.BOT_TOKEN;
+    const token = this.configService.get('BOT_TOKEN', { infer: true });
     if (!token) {
       this.logger.error('BOT_TOKEN not found in environment');
       return;
