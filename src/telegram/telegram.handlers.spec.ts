@@ -5,20 +5,22 @@ import * as messageHandlers from './handlers/message.handler';
 import * as taskActions from './handlers/task.actions';
 import * as dateActions from './handlers/date.actions';
 import { UserState } from './telegram.types';
+import { TasksService } from '../tasks/tasks.service';
+import { UsersService } from '../users/users.service';
 
 describe('TelegramHandlers (adapter)', () => {
   let handlers: TelegramHandlers;
-  let tasksService: object;
-  let usersService: object;
+  let tasksService: TasksService;
+  let usersService: UsersService;
   let userStates: Map<number, UserState>;
   let ctx: object;
 
   beforeEach(() => {
     jest.restoreAllMocks();
-    tasksService = {};
-    usersService = {};
+    tasksService = {} as TasksService;
+    usersService = {} as UsersService;
     userStates = new Map();
-    handlers = new TelegramHandlers(tasksService as any, usersService as any, userStates);
+    handlers = new TelegramHandlers(tasksService, usersService, userStates);
     ctx = { from: { id: 1 }, match: [] };
   });
 
