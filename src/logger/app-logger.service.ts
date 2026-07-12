@@ -1,5 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import type { LoggerService } from '@nestjs/common';
+import { env } from '../config/env';
 
 const LEVEL_LABEL: Record<string, string> = {
   log:     'INFO ',
@@ -24,7 +25,7 @@ const BOLD = '\x1b[1m';
 
 @Injectable()
 export class AppLogger implements LoggerService {
-  private readonly isDev = process.env.NODE_ENV !== 'production';
+  private readonly isDev = env.get('NODE_ENV', { infer: true }) !== 'production';
 
   constructor(@Optional() private readonly context?: string) {}
 
