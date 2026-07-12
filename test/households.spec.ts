@@ -230,6 +230,7 @@ describe('Households (e2e)', () => {
       .set('Authorization', `Bearer ${token1}`)
       .send({
         title: 'Take out trash',
+        description: 'Empty all bins',
         household: { id: householdId },
         assignee: { id: userId2 },
         dueDate: new Date().toISOString(),
