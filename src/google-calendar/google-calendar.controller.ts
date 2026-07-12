@@ -10,12 +10,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleCalendarService } from './google-calendar.service';
+import { EnvironmentVariables } from '../config/environment-variables.type';
 
 @Controller('google-calendar')
 export class GoogleCalendarController {
   constructor(
     private readonly googleCalendarService: GoogleCalendarService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   @Get('connect')

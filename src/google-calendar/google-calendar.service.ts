@@ -55,7 +55,7 @@ export class GoogleCalendarService {
     try {
       const payload = jwt.verify(
         state,
-        this.configService.get<string>('JWT_SECRET')!,
+        this.configService.get('JWT_SECRET', { infer: true })!,
       ) as { userId: string };
       userId = payload.userId;
     } catch {
