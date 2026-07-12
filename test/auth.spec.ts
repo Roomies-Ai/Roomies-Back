@@ -111,6 +111,11 @@ describe('Auth flows (e2e)', () => {
   });
 
   it('POST /auth/refresh issues new tokens and rotates the refresh token', async () => {
+    // JWTs are signed from { userId, iat, exp } — iat has 1s granularity, so a
+    // refresh issued within the same wall-clock second as registration would
+    // sign to a byte-identical token. Wait past the second boundary so the
+    // rotation is actually observable.
+    await new Promise((r) => setTimeout(r, 1100));
     const res = await agent.post('/auth/refresh').expect(201);
 
     expect(res.body.accessToken).toBeDefined();
