@@ -4,10 +4,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response } from 'express';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../models/user.entity';
 import { UsersService } from '../users/users.service';
+import { EnvironmentVariables } from '../config/environment-variables.type';
 
 import { UserDto } from '../dtos/user.dto';
 
@@ -17,14 +19,18 @@ export class AuthService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly usersService: UsersService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   async getGoogleUserInfo(accessToken: string) {
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const googleClientId = this.configService.get('GOOGLE_CLIENT_ID', {
+      infer: true,
+    });
+    const client = new OAuth2Client(googleClientId);
     try {
       const tokenInfo = await client.getTokenInfo(accessToken);
 
-      if (tokenInfo.azp !== process.env.GOOGLE_CLIENT_ID) {
+      if (tokenInfo.azp !== googleClientId) {
         throw new Error('Invalid Google Token');
       }
 
