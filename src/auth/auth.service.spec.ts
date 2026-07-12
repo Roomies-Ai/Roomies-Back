@@ -3,40 +3,51 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { jest, describe, beforeEach, it, expect } from '@jest/globals';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../models/user.entity';
 import { UserDto } from '../dtos/user.dto';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const genSaltMock = jest.fn<(rounds?: number) => Promise<string>>();
+const hashMock = jest.fn<(password: string, salt: number | string) => Promise<string>>();
+const compareMock = jest.fn<(password: string, hash: string) => Promise<boolean>>();
 jest.mock('bcryptjs', () => ({
-  genSalt: jest.fn(),
-  hash: jest.fn(),
-  compare: jest.fn(),
-}));
-jest.mock('jsonwebtoken', () => ({
-  sign: jest.fn(),
-  verify: jest.fn(),
-}));
-jest.mock('axios', () => ({
-  get: jest.fn(),
+  genSalt: genSaltMock,
+  hash: hashMock,
+  compare: compareMock,
 }));
 
-const getTokenInfoMock = jest.fn();
+interface JwtPayload {
+  userId: string;
+}
+
+const jwtSignMock = jest.fn<(payload: object, secret: string, options?: object) => string>();
+const jwtVerifyMock = jest.fn<(token: string, secret: string) => JwtPayload>();
+jest.mock('jsonwebtoken', () => ({
+  sign: jwtSignMock,
+  verify: jwtVerifyMock,
+}));
+
+interface GoogleUserInfoResponse {
+  data: { email: string; name: string; profilePicture: string };
+}
+
+const axiosGetMock = jest.fn<(url: string, config?: object) => Promise<GoogleUserInfoResponse>>();
+jest.mock('axios', () => ({
+  get: axiosGetMock,
+}));
+
+interface GoogleTokenInfo {
+  azp?: string;
+}
+
+const getTokenInfoMock = jest.fn<(accessToken: string) => Promise<GoogleTokenInfo>>();
 jest.mock('google-auth-library', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   OAuth2Client: jest.fn().mockImplementation(() => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getTokenInfo: (...args: any[]) => getTokenInfoMock(...args),
+    getTokenInfo: (accessToken: string) => getTokenInfoMock(accessToken),
   })),
 }));
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import bcrypt from 'bcryptjs';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import jwt from 'jsonwebtoken';
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import axios from 'axios';
 
 const CONFIG_MAP: Record<string, string> = {
   GOOGLE_CLIENT_ID: 'client-id',
@@ -52,22 +63,34 @@ const makeConfigService = (overrides: Record<string, string | undefined> = {}) =
   }),
 });
 
-const makeUser = (overrides: Partial<User> = {}): User =>
-  ({
-    id: 'user-uuid',
-    username: 'jane',
-    email: 'jane@example.com',
-    password: 'hashed-pw',
-    refreshTokens: [],
-    ...overrides,
-  }) as User;
+const makeUser = (overrides: Partial<User> = {}): User => ({
+  id: 'user-uuid',
+  username: 'jane',
+  email: 'jane@example.com',
+  password: 'hashed-pw',
+  profilePicture: null,
+  phoneNumber: null,
+  telegramToken: null,
+  telegramChatId: null,
+  googleAccessToken: null,
+  googleRefreshToken: null,
+  googleTokenExpiresAt: null,
+  calendarSyncEnabled: false,
+  vibes: [],
+  preferences: {},
+  refreshTokens: [],
+  households: [],
+  assignedTasks: [],
+  preferredTaskTypes: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
 
 const mockUserRepo = () => ({
-  findOneBy: jest.fn(),
-  create: jest
-    .fn()
-    .mockImplementation((data: Partial<User>) => ({ ...data }) as User),
-  save: jest.fn(),
+  findOneBy: jest.fn<(where: Partial<User>) => Promise<User | null>>(),
+  create: jest.fn<(data: Partial<User>) => User>().mockImplementation((data) => makeUser(data)),
+  save: jest.fn<(user: User) => Promise<User>>(),
 });
 
 const mockRequest = (body: Record<string, unknown> = {}, cookies: Record<string, string> = {}) =>
@@ -77,18 +100,22 @@ const mockResponse = () =>
   ({
     cookie: jest.fn(),
     clearCookie: jest.fn(),
-  }) as unknown as { cookie: jest.Mock; clearCookie: jest.Mock };
+  }) as unknown as Response;
 
 describe('AuthService', () => {
   let service: AuthService;
   let userRepo: ReturnType<typeof mockUserRepo>;
-  let usersService: { generateTelegramToken: jest.Mock };
+  let usersService: { generateTelegramToken: jest.Mock<(userId: string) => Promise<User>> };
   let configService: ReturnType<typeof makeConfigService>;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     userRepo = mockUserRepo();
-    usersService = { generateTelegramToken: jest.fn().mockResolvedValue(undefined) };
+    usersService = {
+      generateTelegramToken: jest
+        .fn<(userId: string) => Promise<User>>()
+        .mockResolvedValue(makeUser()),
+    };
     configService = makeConfigService();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -108,7 +135,7 @@ describe('AuthService', () => {
   describe('getGoogleUserInfo()', () => {
     it('returns userinfo data on a valid token', async () => {
       getTokenInfoMock.mockResolvedValueOnce({ azp: 'client-id' });
-      (axios.get as jest.Mock).mockResolvedValueOnce({
+      axiosGetMock.mockResolvedValueOnce({
         data: { email: 'jane@example.com', name: 'Jane', profilePicture: 'pic.png' },
       });
 
@@ -131,7 +158,7 @@ describe('AuthService', () => {
 
     it('throws when the userinfo request fails', async () => {
       getTokenInfoMock.mockResolvedValueOnce({ azp: 'client-id' });
-      (axios.get as jest.Mock).mockRejectedValueOnce(new Error('network error'));
+      axiosGetMock.mockRejectedValueOnce(new Error('network error'));
 
       await expect(service.getGoogleUserInfo('tok')).rejects.toThrow(
         'Invalid Google Token',
@@ -143,20 +170,18 @@ describe('AuthService', () => {
 
   describe('generateTokens()', () => {
     it('signs and returns an access + refresh token pair', () => {
-      (jwt.sign as jest.Mock)
-        .mockReturnValueOnce('access-tok')
-        .mockReturnValueOnce('refresh-tok');
+      jwtSignMock.mockReturnValueOnce('access-tok').mockReturnValueOnce('refresh-tok');
 
       const result = service.generateTokens('user-uuid');
 
       expect(result).toEqual({ accessToken: 'access-tok', refreshToken: 'refresh-tok' });
-      expect(jwt.sign).toHaveBeenNthCalledWith(
+      expect(jwtSignMock).toHaveBeenNthCalledWith(
         1,
         { userId: 'user-uuid' },
         'access-secret',
         expect.objectContaining({ expiresIn: '15m' }),
       );
-      expect(jwt.sign).toHaveBeenNthCalledWith(
+      expect(jwtSignMock).toHaveBeenNthCalledWith(
         2,
         { userId: 'user-uuid' },
         'refresh-secret',
@@ -173,17 +198,17 @@ describe('AuthService', () => {
         };
         return map[key];
       });
-      (jwt.sign as jest.Mock).mockReturnValue('tok');
+      jwtSignMock.mockReturnValue('tok');
 
       service.generateTokens('user-uuid');
 
-      expect(jwt.sign).toHaveBeenNthCalledWith(
+      expect(jwtSignMock).toHaveBeenNthCalledWith(
         1,
         expect.anything(),
         expect.anything(),
         expect.objectContaining({ expiresIn: '30m' }),
       );
-      expect(jwt.sign).toHaveBeenNthCalledWith(
+      expect(jwtSignMock).toHaveBeenNthCalledWith(
         2,
         expect.anything(),
         expect.anything(),
@@ -204,9 +229,7 @@ describe('AuthService', () => {
 
   describe('setTokens()', () => {
     it('appends the new refresh token to an existing list and saves', async () => {
-      (jwt.sign as jest.Mock)
-        .mockReturnValueOnce('access-tok')
-        .mockReturnValueOnce('refresh-tok');
+      jwtSignMock.mockReturnValueOnce('access-tok').mockReturnValueOnce('refresh-tok');
       const user = makeUser({ refreshTokens: ['old-tok'] });
       userRepo.save.mockResolvedValueOnce(user);
 
@@ -218,11 +241,8 @@ describe('AuthService', () => {
     });
 
     it('initializes refreshTokens when missing', async () => {
-      (jwt.sign as jest.Mock)
-        .mockReturnValueOnce('access-tok')
-        .mockReturnValueOnce('refresh-tok');
-      const user = makeUser({ refreshTokens: undefined as unknown as string[] });
-      userRepo.save.mockResolvedValueOnce(user);
+      jwtSignMock.mockReturnValueOnce('access-tok').mockReturnValueOnce('refresh-tok');
+      const user = makeUser({ refreshTokens: undefined });
 
       await service.setTokens(user);
 
@@ -237,12 +257,7 @@ describe('AuthService', () => {
       const res = mockResponse();
       const user = new UserDto(makeUser());
 
-      const result = service.sendAuthResponse(
-        res as any,
-        user,
-        'access-tok',
-        'refresh-tok',
-      );
+      const result = service.sendAuthResponse(res, user, 'access-tok', 'refresh-tok');
 
       expect(res.cookie).toHaveBeenCalledWith(
         'refreshToken',
@@ -258,7 +273,7 @@ describe('AuthService', () => {
       );
       const res = mockResponse();
 
-      service.sendAuthResponse(res as any, new UserDto(makeUser()), 'a', 'r');
+      service.sendAuthResponse(res, new UserDto(makeUser()), 'a', 'r');
 
       expect(res.cookie).toHaveBeenCalledWith(
         'refreshToken',
@@ -275,24 +290,22 @@ describe('AuthService', () => {
       const req = mockRequest({});
       const res = mockResponse();
 
-      await expect(service.googleLogin(req as any, res as any)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.googleLogin(req, res)).rejects.toThrow(BadRequestException);
     });
 
     it('reuses an existing user found by email without generating a telegram token', async () => {
       jest
         .spyOn(service, 'getGoogleUserInfo')
-        .mockResolvedValueOnce({ email: 'jane@example.com', name: 'Jane', profilePicture: 'p' } as any);
+        .mockResolvedValueOnce({ email: 'jane@example.com', name: 'Jane', profilePicture: 'p' });
       const existing = makeUser();
       userRepo.findOneBy.mockResolvedValueOnce(existing);
       userRepo.save.mockResolvedValueOnce(existing);
-      (jwt.sign as jest.Mock).mockReturnValue('tok');
+      jwtSignMock.mockReturnValue('tok');
 
       const req = mockRequest({ token: 'google-tok' });
       const res = mockResponse();
 
-      await service.googleLogin(req as any, res as any);
+      await service.googleLogin(req, res);
 
       expect(userRepo.create).not.toHaveBeenCalled();
       expect(usersService.generateTelegramToken).not.toHaveBeenCalled();
@@ -301,18 +314,18 @@ describe('AuthService', () => {
     it('creates a new user with a google-sso password and generates a telegram token', async () => {
       jest
         .spyOn(service, 'getGoogleUserInfo')
-        .mockResolvedValueOnce({ email: 'new@example.com', name: 'New', profilePicture: 'p' } as any);
+        .mockResolvedValueOnce({ email: 'new@example.com', name: 'New', profilePicture: 'p' });
       userRepo.findOneBy.mockResolvedValueOnce(null);
-      userRepo.save.mockImplementation((u: Partial<User>) => {
-        (u as User).id = 'new-id';
-        return Promise.resolve(u as User);
+      userRepo.save.mockImplementation((u: User) => {
+        u.id = 'new-id';
+        return Promise.resolve(u);
       });
-      (jwt.sign as jest.Mock).mockReturnValue('tok');
+      jwtSignMock.mockReturnValue('tok');
 
       const req = mockRequest({ token: 'google-tok' });
       const res = mockResponse();
 
-      await service.googleLogin(req as any, res as any);
+      await service.googleLogin(req, res);
 
       expect(userRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'new@example.com', password: 'google-sso' }),
@@ -326,7 +339,7 @@ describe('AuthService', () => {
       const req = mockRequest({ token: 'google-tok' });
       const res = mockResponse();
 
-      await expect(service.googleLogin(req as any, res as any)).rejects.toThrow(
+      await expect(service.googleLogin(req, res)).rejects.toThrow(
         'Internal server error during Google authentication',
       );
     });
@@ -339,24 +352,22 @@ describe('AuthService', () => {
       const req = mockRequest({ email: 'a@b.com' });
       const res = mockResponse();
 
-      await expect(service.register(req as any, res as any)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.register(req, res)).rejects.toThrow(BadRequestException);
     });
 
     it('hashes the password, creates the user, and generates a telegram token', async () => {
-      (bcrypt.genSalt as jest.Mock).mockResolvedValueOnce('salt');
-      (bcrypt.hash as jest.Mock).mockResolvedValueOnce('hashed-pw');
-      userRepo.save.mockImplementation((u: Partial<User>) => {
-        (u as User).id = 'new-id';
-        return Promise.resolve(u as User);
+      genSaltMock.mockResolvedValueOnce('salt');
+      hashMock.mockResolvedValueOnce('hashed-pw');
+      userRepo.save.mockImplementation((u: User) => {
+        u.id = 'new-id';
+        return Promise.resolve(u);
       });
-      (jwt.sign as jest.Mock).mockReturnValue('tok');
+      jwtSignMock.mockReturnValue('tok');
 
       const req = mockRequest({ email: 'jane@example.com', password: 'plain-pw' });
       const res = mockResponse();
 
-      await service.register(req as any, res as any);
+      await service.register(req, res);
 
       expect(userRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -369,29 +380,25 @@ describe('AuthService', () => {
     });
 
     it('maps a unique-violation db error to "Email already exists"', async () => {
-      (bcrypt.genSalt as jest.Mock).mockResolvedValueOnce('salt');
-      (bcrypt.hash as jest.Mock).mockResolvedValueOnce('hashed-pw');
+      genSaltMock.mockResolvedValueOnce('salt');
+      hashMock.mockResolvedValueOnce('hashed-pw');
       userRepo.save.mockRejectedValueOnce({ code: '23505' });
 
       const req = mockRequest({ email: 'jane@example.com', password: 'plain-pw' });
       const res = mockResponse();
 
-      await expect(service.register(req as any, res as any)).rejects.toThrow(
-        'Email already exists',
-      );
+      await expect(service.register(req, res)).rejects.toThrow('Email already exists');
     });
 
     it('propagates other db errors as their raw message', async () => {
-      (bcrypt.genSalt as jest.Mock).mockResolvedValueOnce('salt');
-      (bcrypt.hash as jest.Mock).mockResolvedValueOnce('hashed-pw');
+      genSaltMock.mockResolvedValueOnce('salt');
+      hashMock.mockResolvedValueOnce('hashed-pw');
       userRepo.save.mockRejectedValueOnce(new Error('db exploded'));
 
       const req = mockRequest({ email: 'jane@example.com', password: 'plain-pw' });
       const res = mockResponse();
 
-      await expect(service.register(req as any, res as any)).rejects.toThrow(
-        'db exploded',
-      );
+      await expect(service.register(req, res)).rejects.toThrow('db exploded');
     });
   });
 
@@ -402,9 +409,7 @@ describe('AuthService', () => {
       const req = mockRequest({ email: 'a@b.com' });
       const res = mockResponse();
 
-      await expect(service.login(req as any, res as any)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.login(req, res)).rejects.toThrow(BadRequestException);
     });
 
     it('throws when no user is found for the email', async () => {
@@ -413,38 +418,32 @@ describe('AuthService', () => {
       const req = mockRequest({ email: 'jane@example.com', password: 'pw' });
       const res = mockResponse();
 
-      await expect(service.login(req as any, res as any)).rejects.toThrow(
-        'Invalid email or password',
-      );
+      await expect(service.login(req, res)).rejects.toThrow('Invalid email or password');
     });
 
     it('throws when the password does not match', async () => {
       userRepo.findOneBy.mockResolvedValueOnce(makeUser());
-      (bcrypt.compare as jest.Mock).mockResolvedValueOnce(false);
+      compareMock.mockResolvedValueOnce(false);
 
       const req = mockRequest({ email: 'jane@example.com', password: 'wrong' });
       const res = mockResponse();
 
-      await expect(service.login(req as any, res as any)).rejects.toThrow(
-        'Invalid email or password',
-      );
+      await expect(service.login(req, res)).rejects.toThrow('Invalid email or password');
     });
 
     it('returns an auth response on success', async () => {
       const user = makeUser();
       userRepo.findOneBy.mockResolvedValueOnce(user);
-      (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
+      compareMock.mockResolvedValueOnce(true);
       userRepo.save.mockResolvedValueOnce(user);
-      (jwt.sign as jest.Mock).mockReturnValue('tok');
+      jwtSignMock.mockReturnValue('tok');
 
       const req = mockRequest({ email: 'jane@example.com', password: 'plain-pw' });
       const res = mockResponse();
 
-      const result = await service.login(req as any, res as any);
+      const result = await service.login(req, res);
 
-      expect(result).toEqual(
-        expect.objectContaining({ isAuth: true, accessToken: 'tok' }),
-      );
+      expect(result).toEqual(expect.objectContaining({ isAuth: true, accessToken: 'tok' }));
     });
   });
 
@@ -455,38 +454,32 @@ describe('AuthService', () => {
       const req = mockRequest({}, {});
       const res = mockResponse();
 
-      await expect(service.logout(req as any, res as any)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.logout(req, res)).rejects.toThrow(BadRequestException);
     });
 
     it('wraps an invalid/expired refresh token as BadRequestException', async () => {
-      (jwt.verify as jest.Mock).mockImplementationOnce(() => {
+      jwtVerifyMock.mockImplementationOnce(() => {
         throw new Error('jwt expired');
       });
 
       const req = mockRequest({}, { refreshToken: 'stale-tok' });
       const res = mockResponse();
 
-      await expect(service.logout(req as any, res as any)).rejects.toThrow(
-        'Invalid refresh token',
-      );
+      await expect(service.logout(req, res)).rejects.toThrow('Invalid refresh token');
     });
 
     it('throws when the refresh token is not on the user record', async () => {
-      (jwt.verify as jest.Mock).mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
       userRepo.findOneBy.mockResolvedValueOnce(makeUser({ refreshTokens: ['other-tok'] }));
 
       const req = mockRequest({}, { refreshToken: 'unknown-tok' });
       const res = mockResponse();
 
-      await expect(service.logout(req as any, res as any)).rejects.toThrow(
-        'Invalid refresh token',
-      );
+      await expect(service.logout(req, res)).rejects.toThrow('Invalid refresh token');
     });
 
     it('removes the refresh token, saves, and clears the cookie on success', async () => {
-      (jwt.verify as jest.Mock).mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
       const user = makeUser({ refreshTokens: ['tok-a', 'tok-b'] });
       userRepo.findOneBy.mockResolvedValueOnce(user);
       userRepo.save.mockResolvedValueOnce(user);
@@ -494,7 +487,7 @@ describe('AuthService', () => {
       const req = mockRequest({}, { refreshToken: 'tok-a' });
       const res = mockResponse();
 
-      const result = await service.logout(req as any, res as any);
+      const result = await service.logout(req, res);
 
       expect(user.refreshTokens).toEqual(['tok-b']);
       expect(res.clearCookie).toHaveBeenCalledWith('refreshToken', expect.any(Object));
@@ -509,49 +502,43 @@ describe('AuthService', () => {
       const req = mockRequest({}, {});
       const res = mockResponse();
 
-      await expect(service.refresh(req as any, res as any)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.refresh(req, res)).rejects.toThrow(BadRequestException);
     });
 
     it('wraps an invalid refresh token as BadRequestException', async () => {
-      (jwt.verify as jest.Mock).mockImplementationOnce(() => {
+      jwtVerifyMock.mockImplementationOnce(() => {
         throw new Error('bad token');
       });
 
       const req = mockRequest({}, { refreshToken: 'stale-tok' });
       const res = mockResponse();
 
-      await expect(service.refresh(req as any, res as any)).rejects.toThrow(
-        'Invalid refresh token',
-      );
+      await expect(service.refresh(req, res)).rejects.toThrow('Invalid refresh token');
     });
 
     it('throws when the refresh token is not on the user record', async () => {
-      (jwt.verify as jest.Mock).mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
       userRepo.findOneBy.mockResolvedValueOnce(makeUser({ refreshTokens: ['other-tok'] }));
 
       const req = mockRequest({}, { refreshToken: 'unknown-tok' });
       const res = mockResponse();
 
-      await expect(service.refresh(req as any, res as any)).rejects.toThrow(
-        'Invalid refresh token',
-      );
+      await expect(service.refresh(req, res)).rejects.toThrow('Invalid refresh token');
     });
 
     it('rotates the refresh token and returns new tokens on success', async () => {
-      (jwt.verify as jest.Mock).mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
       const user = makeUser({ refreshTokens: ['old-tok'] });
       userRepo.findOneBy.mockResolvedValueOnce(user);
       userRepo.save.mockResolvedValueOnce(user);
-      (jwt.sign as jest.Mock)
+      jwtSignMock
         .mockReturnValueOnce('new-access-tok')
         .mockReturnValueOnce('new-refresh-tok');
 
       const req = mockRequest({}, { refreshToken: 'old-tok' });
       const res = mockResponse();
 
-      const result = await service.refresh(req as any, res as any);
+      const result = await service.refresh(req, res);
 
       expect(user.refreshTokens).toEqual(['new-refresh-tok']);
       expect(result).toEqual(
