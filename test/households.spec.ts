@@ -7,19 +7,39 @@ import { randomUUID } from 'crypto';
 import { AppModule } from '../src/app.module';
 import { describe, beforeAll, afterAll, expect, it, jest } from '@jest/globals';
 import { DEFAULT_TASK_TYPES } from '../src/helpers/consts';
+import { promptGemini } from '../src/helpers/gemini';
+import type { GenerateContentResult } from '@google/generative-ai';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-jest.mock('../src/helpers/gemini', () => ({
-  promptGemini: jest.fn().mockResolvedValue({
-    response: {
-      text: () =>
-        JSON.stringify([
-          { title: 'Wipe kitchen counters', description: 'Quick wipe-down', points: 2 },
-        ]),
-    },
-  }),
-}));
-/* eslint-enable @typescript-eslint/no-explicit-any */
+jest.mock('../src/helpers/gemini');
+
+const mockGeminiResult: GenerateContentResult = {
+  response: {
+    text: () =>
+      JSON.stringify([
+        { title: 'Wipe kitchen counters', description: 'Quick wipe-down', points: 2 },
+      ]),
+    functionCall: () => undefined,
+    functionCalls: () => undefined,
+  },
+};
+
+jest.mocked(promptGemini).mockResolvedValue(mockGeminiResult);
+
+interface TaskTypeLike {
+  name: string;
+}
+
+interface MemberLike {
+  id: string;
+}
+
+interface TaskLike {
+  id: string;
+}
+
+interface HouseholdLike {
+  id: string;
+}
 
 const HOUSEHOLD_NAME = `E2EHousehold-${Date.now()}`;
 const NO_AUTH_HOUSEHOLD_NAME = `E2ENoAuthHousehold-${Date.now()}`;
@@ -98,7 +118,7 @@ describe('Households (e2e)', () => {
     expect(householdId).toBeDefined();
     expect(originalInviteCode).toMatch(/^[0-9A-F]{8}$/);
     expect(res.body.taskTypes).toHaveLength(DEFAULT_TASK_TYPES.length);
-    expect(res.body.taskTypes.map((t: any) => t.name).sort()).toEqual(
+    expect(res.body.taskTypes.map((t: TaskTypeLike) => t.name).sort()).toEqual(
       [...DEFAULT_TASK_TYPES].sort(),
     );
   });
@@ -118,7 +138,7 @@ describe('Households (e2e)', () => {
       .set('Authorization', `Bearer ${token1}`)
       .expect(200);
 
-    const mine = res.body.find((h: any) => h.id === householdId);
+    const mine = res.body.find((h: HouseholdLike) => h.id === householdId);
     expect(mine).toBeDefined();
     expect(mine.taskCount).toBeDefined();
   });
@@ -129,7 +149,7 @@ describe('Households (e2e)', () => {
       .set('Authorization', `Bearer ${token1}`)
       .expect(200);
 
-    const mine = res.body.find((h: any) => h.id === householdId);
+    const mine = res.body.find((h: HouseholdLike) => h.id === householdId);
     expect(mine).toBeDefined();
     expect(Array.isArray(mine.tasks)).toBe(true);
     expect(Array.isArray(mine.pets)).toBe(true);
@@ -198,7 +218,7 @@ describe('Households (e2e)', () => {
       .send({ inviteCode: newInviteCode })
       .expect(201);
 
-    expect(res.body.members.some((m: any) => m.id === userId2)).toBe(true);
+    expect(res.body.members.some((m: MemberLike) => m.id === userId2)).toBe(true);
   });
 
   it('POST /households/join rejects joining a second time', async () => {
@@ -221,7 +241,7 @@ describe('Households (e2e)', () => {
       .set('Authorization', `Bearer ${token1}`)
       .expect(200);
 
-    expect(res.body.taskTypes.some((t: any) => t.name === 'Gardening')).toBe(true);
+    expect(res.body.taskTypes.some((t: TaskTypeLike) => t.name === 'Gardening')).toBe(true);
   });
 
   it('DELETE /households/:id/users/:userId unassigns the removed member\'s tasks', async () => {
@@ -248,7 +268,7 @@ describe('Households (e2e)', () => {
       .set('Authorization', `Bearer ${token1}`)
       .expect(200);
 
-    const unassigned = tasksRes.body.find((t: any) => t.id === taskId);
+    const unassigned = tasksRes.body.find((t: TaskLike) => t.id === taskId);
     expect(unassigned.assignee).toBeNull();
     expect(unassigned.status).toBe('pending');
   });
