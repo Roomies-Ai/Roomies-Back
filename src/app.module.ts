@@ -25,6 +25,7 @@ import { LoggerModule } from './logger/logger.module';
 import { RequestLoggerMiddleware } from './logger/request-logger.middleware';
 import { NotificationsModule } from './notifications/notifications.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
+import { EnvironmentVariables } from './config/environment-variables.type';
 
 @Module({
   imports: [
@@ -32,25 +33,31 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule, LoggerModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const databaseUrl = configService.get<string>('DATABASE_URL');
+      useFactory: (configService: ConfigService<EnvironmentVariables>) => {
+        const databaseUrl = configService.get('DATABASE_URL', {
+          infer: true,
+        });
         return {
           type: 'postgres',
           url: databaseUrl,
-          host: !databaseUrl ? configService.get<string>('DB_HOST') : undefined,
-          port: !databaseUrl ? configService.get<number>('DB_PORT') : undefined,
+          host: !databaseUrl
+            ? configService.get('DB_HOST', { infer: true })
+            : undefined,
+          port: !databaseUrl
+            ? configService.get('DB_PORT', { infer: true })
+            : undefined,
           username: !databaseUrl
-            ? configService.get<string>('DB_USERNAME')
+            ? configService.get('DB_USERNAME', { infer: true })
             : undefined,
           password: !databaseUrl
-            ? configService.get<string>('DB_PASSWORD')
+            ? configService.get('DB_PASSWORD', { infer: true })
             : undefined,
           database: !databaseUrl
-            ? configService.get<string>('DB_NAME')
+            ? configService.get('DB_NAME', { infer: true })
             : undefined,
           entities: [User, Task, Household, Pet, TaskType],
           synchronize: true, // Note: Set to false in production
-          ...(configService.get<string>('DB_IS_SSL') === 'true'
+          ...(configService.get('DB_IS_SSL', { infer: true }) === 'true'
             ? {
                 ssl: {
                   rejectUnauthorized: false,
