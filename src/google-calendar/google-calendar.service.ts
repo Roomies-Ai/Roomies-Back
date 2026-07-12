@@ -13,6 +13,7 @@ import { Repository } from 'typeorm';
 import { Task } from '../models/task.entity';
 import { User } from '../models/user.entity';
 import { UsersService } from '../users/users.service';
+import { EnvironmentVariables } from '../config/environment-variables.type';
 
 @Injectable()
 export class GoogleCalendarService {
@@ -21,14 +22,14 @@ export class GoogleCalendarService {
   constructor(
     private readonly usersService: UsersService,
     @InjectRepository(Task) private readonly taskRepo: Repository<Task>,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
   ) {}
 
   private createOAuth2Client(): Auth.OAuth2Client {
     return new google.auth.OAuth2(
-      this.configService.get<string>('GOOGLE_CLIENT_ID'),
-      this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-      this.configService.get<string>('GOOGLE_CALENDAR_REDIRECT_URI'),
+      this.configService.get('GOOGLE_CLIENT_ID', { infer: true }),
+      this.configService.get('GOOGLE_CLIENT_SECRET', { infer: true }),
+      this.configService.get('GOOGLE_CALENDAR_REDIRECT_URI', { infer: true }),
     );
   }
 
@@ -36,7 +37,7 @@ export class GoogleCalendarService {
     const nonce = randomBytes(16).toString('hex');
     const state = jwt.sign(
       { userId, nonce },
-      this.configService.get<string>('JWT_SECRET')!,
+      this.configService.get('JWT_SECRET', { infer: true })!,
       { expiresIn: '10m' },
     );
 
