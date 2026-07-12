@@ -54,6 +54,10 @@ describe('Users (e2e)', () => {
 
   afterAll(async () => {
     await dataSource.query(
+      'DELETE FROM users_preferred_task_types_task_types WHERE "usersId" = $1',
+      [userId],
+    );
+    await dataSource.query(
       'DELETE FROM users_households_households WHERE "householdsId" IN (SELECT id FROM households WHERE name = $1)',
       [HOUSEHOLD_NAME],
     );
