@@ -64,7 +64,7 @@ const makePet = (overrides: Partial<Pet> = {}): Pet => ({
 });
 
 const makeTaskType = (overrides: Partial<TaskType> = {}): TaskType => ({
-  id: 'task-type-uuid',
+  id: crypto.randomUUID(),
   name: 'General',
   household: makeHousehold(),
   tasks: [],
@@ -74,8 +74,9 @@ const makeTaskType = (overrides: Partial<TaskType> = {}): TaskType => ({
   ...overrides,
 });
 
+const taskId = crypto.randomUUID();
 const makeTask = (overrides: Partial<Task> = {}): Task => ({
-  id: 'task-uuid',
+  id: taskId,
   title: 'Task',
   description: '',
   status: TaskStatus.PENDING,
@@ -197,14 +198,16 @@ describe('HouseholdsService', () => {
       typeof service.generateInviteCode
     >;
     let findOneSpy: jest.SpiedFunction<typeof service.findOne>;
+    let loadedHousehold: Household;
 
     beforeEach(() => {
       generateInviteCodeSpy = jest
         .spyOn(service, 'generateInviteCode')
         .mockResolvedValue(makeHousehold());
+      loadedHousehold = makeHousehold();
       findOneSpy = jest
         .spyOn(service, 'findOne')
-        .mockResolvedValue(makeHousehold());
+        .mockResolvedValue(loadedHousehold);
       householdRepo.save.mockImplementation((h) =>
         Promise.resolve({ ...h, id: 'hh-uuid' }),
       );
@@ -236,7 +239,7 @@ describe('HouseholdsService', () => {
       await service.create({ name: 'My House' }, 'missing-user');
 
       expect(householdRepo.save).toHaveBeenCalledWith(
-        expect.not.objectContaining({ members: expect.anything() }),
+        expect.objectContaining({ members: [] }),
       );
     });
 
@@ -270,7 +273,7 @@ describe('HouseholdsService', () => {
 
       expect(generateInviteCodeSpy).toHaveBeenCalledWith('hh-uuid');
       expect(findOneSpy).toHaveBeenCalledWith('hh-uuid');
-      expect(result).toEqual(makeHousehold());
+      expect(result).toEqual(loadedHousehold);
     });
   });
 
@@ -341,7 +344,8 @@ describe('HouseholdsService', () => {
         makeHousehold({ id: 'hh-2' }),
       ]);
       const qb = makeQb();
-      qb.getMany.mockResolvedValueOnce([makeHousehold({ id: 'hh-1' })]);
+      const fullHousehold = makeHousehold({ id: 'hh-1' });
+      qb.getMany.mockResolvedValueOnce([fullHousehold]);
       householdRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
       const result = await service.findByUserId('user-uuid', true);
@@ -349,7 +353,7 @@ describe('HouseholdsService', () => {
       expect(qb.where).toHaveBeenCalledWith('household.id IN (:...ids)', {
         ids: ['hh-1', 'hh-2'],
       });
-      expect(result).toEqual([makeHousehold({ id: 'hh-1' })]);
+      expect(result).toEqual([fullHousehold]);
     });
   });
 

@@ -95,7 +95,8 @@ export class AuthService {
   ) {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: this.configService.get('NODE_ENV', { infer: true }) === 'production',
+      secure:
+        this.configService.get('NODE_ENV', { infer: true }) === 'production',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -119,6 +120,7 @@ export class AuthService {
         await this.getGoogleUserInfo(token);
 
       let user = await this.userRepository.findOneBy({ email });
+
       if (!user) {
         user = this.userRepository.create({
           username: name,
@@ -248,7 +250,8 @@ export class AuthService {
 
       res.clearCookie('refreshToken', {
         httpOnly: true,
-        secure: this.configService.get('NODE_ENV', { infer: true }) === 'production',
+        secure:
+          this.configService.get('NODE_ENV', { infer: true }) === 'production',
         sameSite: 'strict',
       });
 

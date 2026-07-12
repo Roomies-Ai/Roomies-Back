@@ -15,9 +15,9 @@ const hashMock =
 const compareMock =
   jest.fn<(password: string, hash: string) => Promise<boolean>>();
 jest.mock('bcryptjs', () => ({
-  genSalt: genSaltMock,
-  hash: hashMock,
-  compare: compareMock,
+  genSalt: (rounds?: number) => genSaltMock(rounds),
+  hash: (password: string, salt: number | string) => hashMock(password, salt),
+  compare: (password: string, hash: string) => compareMock(password, hash),
 }));
 
 interface JwtPayload {
@@ -28,8 +28,9 @@ const jwtSignMock =
   jest.fn<(payload: object, secret: string, options?: object) => string>();
 const jwtVerifyMock = jest.fn<(token: string, secret: string) => JwtPayload>();
 jest.mock('jsonwebtoken', () => ({
-  sign: jwtSignMock,
-  verify: jwtVerifyMock,
+  sign: (payload: object, secret: string, options?: object) =>
+    jwtSignMock(payload, secret, options),
+  verify: (token: string, secret: string) => jwtVerifyMock(token, secret),
 }));
 
 interface GoogleUserInfoResponse {
@@ -39,7 +40,7 @@ interface GoogleUserInfoResponse {
 const axiosGetMock =
   jest.fn<(url: string, config?: object) => Promise<GoogleUserInfoResponse>>();
 jest.mock('axios', () => ({
-  get: axiosGetMock,
+  get: (url: string, config?: object) => axiosGetMock(url, config),
 }));
 
 interface GoogleTokenInfo {
@@ -71,8 +72,9 @@ const makeConfigService = (
   }),
 });
 
+const userId = crypto.randomUUID();
 const makeUser = (overrides: Partial<User> = {}): User => ({
-  id: 'user-uuid',
+  id: userId,
   username: 'jane',
   email: 'jane@example.com',
   password: 'hashed-pw',
@@ -152,22 +154,19 @@ describe('AuthService', () => {
 
   describe('getGoogleUserInfo()', () => {
     it('returns userinfo data on a valid token', async () => {
-      getTokenInfoMock.mockResolvedValueOnce({ azp: 'client-id' });
-      axiosGetMock.mockResolvedValueOnce({
+      const googleInfo = {
         data: {
           email: 'jane@example.com',
           name: 'Jane',
           profilePicture: 'pic.png',
         },
-      });
+      };
+      getTokenInfoMock.mockResolvedValueOnce({ azp: 'client-id' });
+      axiosGetMock.mockResolvedValueOnce(googleInfo);
 
       const result = await service.getGoogleUserInfo('tok');
 
-      expect(result).toEqual({
-        email: 'jane@example.com',
-        name: 'Jane',
-        profilePicture: 'pic.png',
-      });
+      expect(result).toEqual(googleInfo.data);
     });
 
     it('throws when the token audience does not match the configured client id', async () => {
@@ -196,7 +195,7 @@ describe('AuthService', () => {
         .mockReturnValueOnce('access-tok')
         .mockReturnValueOnce('refresh-tok');
 
-      const result = service.generateTokens('user-uuid');
+      const result = service.generateTokens(userId);
 
       expect(result).toEqual({
         accessToken: 'access-tok',
@@ -204,13 +203,13 @@ describe('AuthService', () => {
       });
       expect(jwtSignMock).toHaveBeenNthCalledWith(
         1,
-        { userId: 'user-uuid' },
+        { userId },
         'access-secret',
         expect.objectContaining({ expiresIn: '15m' }),
       );
       expect(jwtSignMock).toHaveBeenNthCalledWith(
         2,
-        { userId: 'user-uuid' },
+        { userId },
         'refresh-secret',
         expect.objectContaining({ expiresIn: '7d' }),
       );
@@ -227,7 +226,7 @@ describe('AuthService', () => {
       });
       jwtSignMock.mockReturnValue('tok');
 
-      service.generateTokens('user-uuid');
+      service.generateTokens(userId);
 
       expect(jwtSignMock).toHaveBeenNthCalledWith(
         1,
@@ -246,7 +245,7 @@ describe('AuthService', () => {
     it('throws when JWT secrets are not configured', () => {
       configService.get.mockReturnValue(undefined);
 
-      expect(() => service.generateTokens('user-uuid')).toThrow(
+      expect(() => service.generateTokens(userId)).toThrow(
         'FATAL: JWT_SECRET and JWT_REFRESH_SECRET environment variables must be set',
       );
     });
@@ -551,7 +550,7 @@ describe('AuthService', () => {
     });
 
     it('throws when the refresh token is not on the user record', async () => {
-      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: userId });
       userRepo.findOneBy.mockResolvedValueOnce(
         makeUser({ refreshTokens: ['other-tok'] }),
       );
@@ -565,7 +564,7 @@ describe('AuthService', () => {
     });
 
     it('removes the refresh token, saves, and clears the cookie on success', async () => {
-      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: userId });
       const user = makeUser({ refreshTokens: ['tok-a', 'tok-b'] });
       userRepo.findOneBy.mockResolvedValueOnce(user);
       userRepo.save.mockResolvedValueOnce(user);
@@ -610,7 +609,7 @@ describe('AuthService', () => {
     });
 
     it('throws when the refresh token is not on the user record', async () => {
-      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: userId });
       userRepo.findOneBy.mockResolvedValueOnce(
         makeUser({ refreshTokens: ['other-tok'] }),
       );
@@ -624,7 +623,7 @@ describe('AuthService', () => {
     });
 
     it('rotates the refresh token and returns new tokens on success', async () => {
-      jwtVerifyMock.mockReturnValueOnce({ userId: 'user-uuid' });
+      jwtVerifyMock.mockReturnValueOnce({ userId: userId });
       const user = makeUser({ refreshTokens: ['old-tok'] });
       userRepo.findOneBy.mockResolvedValueOnce(user);
       userRepo.save.mockResolvedValueOnce(user);
