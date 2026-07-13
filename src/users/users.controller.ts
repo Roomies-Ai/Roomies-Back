@@ -14,8 +14,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { randomUUID } from 'crypto';
+import { existsSync, unlinkSync } from 'fs';
 import { UsersService } from './users.service';
 import { User } from '../models/user.entity';
 import { EnvironmentVariables } from '../config/environment-variables.type';
@@ -164,6 +165,48 @@ export class UsersController {
         })),
       })),
     };
+  }
+
+  @Delete('me/picture')
+  async deleteProfilePicture(@Req() req: any) {
+    const userId = req['user']?.id || req['user']?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('User context not found from middleware');
+    }
+
+    const currentUser = await this.usersService.findUserById(userId);
+    this.deleteStoredProfilePictureFile(currentUser?.profilePicture);
+
+    const user = await this.usersService.update(userId, { profilePicture: null });
+    return {
+      ...user,
+      preferredTaskTypes: (user.preferredTaskTypes || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      households: (user.households || []).map((h) => ({
+        id: h.id,
+        name: h.name,
+        taskTypes: (h.taskTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+        })),
+      })),
+    };
+  }
+
+  private deleteStoredProfilePictureFile(profilePicture?: string | null) {
+    if (!profilePicture) return;
+
+    const filename = basename(profilePicture);
+    if (!/^[a-f0-9-]+\.(jpg|png|webp|gif)$/i.test(filename)) return;
+
+    const filePath = join(process.cwd(), 'uploads', 'profile-pictures', filename);
+    try {
+      if (existsSync(filePath)) unlinkSync(filePath);
+    } catch {
+      // best-effort cleanup; ignore failures
+    }
   }
 
   @Patch('me/password')
