@@ -16,7 +16,7 @@
     "start:docker": "docker-compose up -d",
     "test:unit": "jest --no-coverage",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test:cov": "npm run ensure-test-db && jest --config ./test/jest-e2e.json --detectOpenHandles --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "ensure-test-db": "docker compose up -d --build --wait db-test",
     "test": "npm run ensure-test-db && jest --config ./test/jest-e2e.json --detectOpenHandles",
