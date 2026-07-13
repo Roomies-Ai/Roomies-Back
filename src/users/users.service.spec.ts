@@ -6,8 +6,10 @@ import { User } from '../models/user.entity';
 import { TaskType } from '../models/task-type.entity';
 import { UsersService } from './users.service';
 
-const compareMock = jest.fn<(password: string, hash: string) => Promise<boolean>>();
-const hashMock = jest.fn<(password: string, rounds: number) => Promise<string>>();
+const compareMock =
+  jest.fn<(password: string, hash: string) => Promise<boolean>>();
+const hashMock =
+  jest.fn<(password: string, rounds: number) => Promise<string>>();
 jest.mock('bcryptjs', () => ({
   compare: (password: string, hash: string) => compareMock(password, hash),
   hash: (password: string, rounds: number) => hashMock(password, rounds),
@@ -22,9 +24,10 @@ const makeQb = () => ({
   getOne: jest.fn<() => Promise<unknown | null>>().mockResolvedValue(null),
 });
 
+const userId = crypto.randomUUID();
 const makeUser = (overrides: Partial<User> = {}): User =>
   ({
-    id: 'user-uuid',
+    id: userId,
     username: 'jane',
     email: 'jane@example.com',
     password: 'hashed-pw',
@@ -42,7 +45,9 @@ const mockUserRepo = () => ({
   save: jest
     .fn<(user: User) => Promise<User>>()
     .mockImplementation((u) => Promise.resolve(u)),
-  update: jest.fn<(id: string, data: object) => Promise<object>>().mockResolvedValue({}),
+  update: jest
+    .fn<(id: string, data: object) => Promise<object>>()
+    .mockResolvedValue({}),
   findOne: jest.fn<(options: object) => Promise<User | null>>(),
 });
 
@@ -84,10 +89,10 @@ describe('UsersService', () => {
       ]);
       taskTypeRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
-      const result = await service.getAvailableTaskTypes('user-uuid');
+      const result = await service.getAvailableTaskTypes(userId);
 
       expect(qb.where).toHaveBeenCalledWith('member.id = :userId', {
-        userId: 'user-uuid',
+        userId,
       });
       expect(result).toEqual([
         { id: 'tt-1', name: 'Cleaning', householdName: 'The House' },
@@ -105,9 +110,9 @@ describe('UsersService', () => {
       qb.getOne.mockResolvedValueOnce(user);
       userRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
-      const result = await service.findOne('user-uuid');
+      const result = await service.findOne(userId);
 
-      expect(qb.where).toHaveBeenCalledWith('user.id = :id', { id: 'user-uuid' });
+      expect(qb.where).toHaveBeenCalledWith('user.id = :id', { id: userId });
       expect(result).toBe(user);
     });
 
@@ -116,7 +121,9 @@ describe('UsersService', () => {
       qb.getOne.mockResolvedValueOnce(null);
       userRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -128,7 +135,7 @@ describe('UsersService', () => {
       qb.getOne.mockResolvedValue(makeUser());
       userRepo.createQueryBuilder.mockReturnValue(qb);
 
-      await service.updatePreferredTasks('user-uuid', ['tt-1', 'tt-2']);
+      await service.updatePreferredTasks(userId, ['tt-1', 'tt-2']);
 
       expect(userRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -145,7 +152,7 @@ describe('UsersService', () => {
       const user = makeUser();
       userRepo.findOneBy.mockResolvedValueOnce(user);
 
-      const result = await service.findUserById('user-uuid');
+      const result = await service.findUserById(userId);
 
       expect(result).toBe(user);
     });
@@ -175,10 +182,12 @@ describe('UsersService', () => {
         .mockResolvedValueOnce(makeUser()) // load user
         .mockResolvedValueOnce(null); // no collision
 
-      const result = await service.generateTelegramToken('user-uuid');
+      const result = await service.generateTelegramToken(userId);
 
       expect(userRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ telegramToken: expect.stringMatching(/^[0-9A-F]{8}$/) }),
+        expect.objectContaining({
+          telegramToken: expect.stringMatching(/^[0-9A-F]{8}$/),
+        }),
       );
       expect(result).toBeDefined();
     });
@@ -189,7 +198,7 @@ describe('UsersService', () => {
         .mockResolvedValueOnce(makeUser({ telegramToken: 'COLLIDE1' })) // first attempt collides
         .mockResolvedValueOnce(null); // second attempt is free
 
-      await service.generateTelegramToken('user-uuid');
+      await service.generateTelegramToken(userId);
 
       expect(userRepo.findOneBy).toHaveBeenCalledTimes(3);
     });
@@ -199,9 +208,9 @@ describe('UsersService', () => {
 
   describe('saveTelegramChatId()', () => {
     it('updates the telegramChatId field', async () => {
-      await service.saveTelegramChatId('user-uuid', 'chat-1');
+      await service.saveTelegramChatId(userId, 'chat-1');
 
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         telegramChatId: 'chat-1',
       });
     });
@@ -213,9 +222,9 @@ describe('UsersService', () => {
         .mockResolvedValueOnce(makeUser())
         .mockResolvedValueOnce(null);
 
-      await service.unlinkTelegramChatId('user-uuid');
+      await service.unlinkTelegramChatId(userId);
 
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         telegramChatId: null,
       });
       expect(userRepo.save).toHaveBeenCalledWith(
@@ -233,9 +242,9 @@ describe('UsersService', () => {
       qb.getOne.mockResolvedValueOnce(updated);
       userRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
-      const result = await service.update('user-uuid', { username: 'new-name' });
+      const result = await service.update(userId, { username: 'new-name' });
 
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         username: 'new-name',
       });
       expect(result).toBe(updated);
@@ -248,13 +257,13 @@ describe('UsersService', () => {
     it('persists all three token fields and enables sync', async () => {
       const expiresAt = new Date();
 
-      await service.saveGoogleCalendarTokens('user-uuid', {
+      await service.saveGoogleCalendarTokens(userId, {
         googleAccessToken: 'acc',
         googleRefreshToken: 'ref',
         googleTokenExpiresAt: expiresAt,
       });
 
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         googleAccessToken: 'acc',
         googleRefreshToken: 'ref',
         googleTokenExpiresAt: expiresAt,
@@ -265,9 +274,9 @@ describe('UsersService', () => {
 
   describe('clearGoogleCalendarTokens()', () => {
     it('nulls all three token fields and disables sync', async () => {
-      await service.clearGoogleCalendarTokens('user-uuid');
+      await service.clearGoogleCalendarTokens(userId);
 
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         googleAccessToken: null,
         googleRefreshToken: null,
         googleTokenExpiresAt: null,
@@ -278,15 +287,15 @@ describe('UsersService', () => {
 
   describe('setCalendarSyncEnabled()', () => {
     it('toggles the flag to true', async () => {
-      await service.setCalendarSyncEnabled('user-uuid', true);
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      await service.setCalendarSyncEnabled(userId, true);
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         calendarSyncEnabled: true,
       });
     });
 
     it('toggles the flag to false', async () => {
-      await service.setCalendarSyncEnabled('user-uuid', false);
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      await service.setCalendarSyncEnabled(userId, false);
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         calendarSyncEnabled: false,
       });
     });
@@ -310,7 +319,7 @@ describe('UsersService', () => {
       // The controller relies on this NOT being a NestJS HttpException subtype,
       // since it catches generically and wraps it as UnauthorizedException itself.
       await expect(
-        service.updatePassword('user-uuid', 'wrong', 'new'),
+        service.updatePassword(userId, 'wrong', 'new'),
       ).rejects.toMatchObject({
         message: 'Incorrect current password',
         constructor: Error,
@@ -322,10 +331,10 @@ describe('UsersService', () => {
       compareMock.mockResolvedValueOnce(true);
       hashMock.mockResolvedValueOnce('new-hashed-pw');
 
-      await service.updatePassword('user-uuid', 'old', 'new');
+      await service.updatePassword(userId, 'old', 'new');
 
       expect(hashMock).toHaveBeenCalledWith('new', 10);
-      expect(userRepo.update).toHaveBeenCalledWith('user-uuid', {
+      expect(userRepo.update).toHaveBeenCalledWith(userId, {
         password: 'new-hashed-pw',
       });
     });

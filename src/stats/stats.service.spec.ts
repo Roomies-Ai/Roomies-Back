@@ -1,7 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { jest, describe, beforeEach, afterEach, it, expect } from '@jest/globals';
+import {
+  jest,
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  expect,
+} from '@jest/globals';
 import { Task } from '../models/task.entity';
 import { User } from '../models/user.entity';
 import { TaskStatus } from '../helpers/consts';
@@ -94,7 +101,7 @@ describe('StatsService', () => {
 
       wireHouseholdStatsQueries(taskRepo, [], []);
       await service.getFairnessStats('user-1', 'hh-1');
-      expect(taskRepo.createQueryBuilder).toHaveBeenCalledTimes(4);
+      expect(taskRepo.createQueryBuilder).toHaveBeenCalledTimes(4); // 2 more invocations after cache clear
     });
   });
 
@@ -180,9 +187,27 @@ describe('StatsService', () => {
       wireHouseholdStatsQueries(
         taskRepo,
         [
-          { memberId: 'member-1', typeName: 'Cleaning', status: TaskStatus.COMPLETED, count: '2', points: '5' },
-          { memberId: 'member-1', typeName: 'Cleaning', status: TaskStatus.PENDING, count: '1', points: '0' },
-          { memberId: null, typeName: null, status: TaskStatus.PENDING, count: '3', points: '0' },
+          {
+            memberId: 'member-1',
+            typeName: 'Cleaning',
+            status: TaskStatus.COMPLETED,
+            count: '2',
+            points: '5',
+          },
+          {
+            memberId: 'member-1',
+            typeName: 'Cleaning',
+            status: TaskStatus.PENDING,
+            count: '1',
+            points: '0',
+          },
+          {
+            memberId: null,
+            typeName: null,
+            status: TaskStatus.PENDING,
+            count: '3',
+            points: '0',
+          },
         ],
         [],
       );
@@ -209,24 +234,31 @@ describe('StatsService', () => {
 
     it('maps effective overdue status onto the flat task list', async () => {
       const past = new Date(Date.now() - 86_400_000).toISOString();
-      wireHouseholdStatsQueries(taskRepo, [], [
-        {
-          id: 'task-1',
-          title: 'Overdue task',
-          status: TaskStatus.PENDING,
-          dueDate: past,
-          points: 3,
-          assigneeId: null,
-          assigneeUsername: null,
-          taskTypeId: null,
-          taskTypeName: null,
-        },
-      ]);
+      wireHouseholdStatsQueries(
+        taskRepo,
+        [],
+        [
+          {
+            id: 'task-1',
+            title: 'Overdue task',
+            status: TaskStatus.PENDING,
+            dueDate: past,
+            points: 3,
+            assigneeId: null,
+            assigneeUsername: null,
+            taskTypeId: null,
+            taskTypeName: null,
+          },
+        ],
+      );
 
       const result = await service.getHouseholdStats('hh-1');
 
       expect(result.tasks).toHaveLength(1);
-      expect(result.tasks[0]).toMatchObject({ id: 'task-1', status: 'overdue' });
+      expect(result.tasks[0]).toMatchObject({
+        id: 'task-1',
+        status: 'overdue',
+      });
     });
   });
 

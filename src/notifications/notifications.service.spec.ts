@@ -23,7 +23,12 @@ const mockTaskRepo = () => ({
 });
 
 const makeUser = (overrides: Partial<User> = {}): User =>
-  ({ id: 'user-1', username: 'jane', telegramChatId: 'chat-1', ...overrides }) as User;
+  ({
+    id: 'user-1',
+    username: 'jane',
+    telegramChatId: 'chat-1',
+    ...overrides,
+  }) as User;
 
 const makeTask = (overrides: Partial<Task> = {}): Task =>
   ({
@@ -37,12 +42,16 @@ const makeTask = (overrides: Partial<Task> = {}): Task =>
 describe('NotificationsService', () => {
   let service: NotificationsService;
   let taskRepo: ReturnType<typeof mockTaskRepo>;
-  let telegramService: { sendMessage: jest.Mock<(chatId: string, text: string) => Promise<void>> };
+  let telegramService: {
+    sendMessage: jest.Mock<(chatId: string, text: string) => Promise<void>>;
+  };
 
   beforeEach(async () => {
     taskRepo = mockTaskRepo();
     telegramService = {
-      sendMessage: jest.fn<(chatId: string, text: string) => Promise<void>>().mockResolvedValue(undefined),
+      sendMessage: jest
+        .fn<(chatId: string, text: string) => Promise<void>>()
+        .mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -70,10 +79,9 @@ describe('NotificationsService', () => {
       expect(qb.where).toHaveBeenCalledWith('task.assignee = :userId', {
         userId: 'user-1',
       });
-      expect(qb.andWhere).toHaveBeenCalledWith(
-        'task.status != :completed',
-        { completed: TaskStatus.COMPLETED },
-      );
+      expect(qb.andWhere).toHaveBeenCalledWith('task.status != :completed', {
+        completed: TaskStatus.COMPLETED,
+      });
       expect(qb.orderBy).toHaveBeenCalledWith('task.dueDate', 'ASC');
       expect(result).toBe(tasks);
     });
@@ -116,9 +124,11 @@ describe('NotificationsService', () => {
       );
     });
 
-    it('groups multiple tasks for the same user into a single message using singular wording for one task', async () => {
+    it('one task creates an appropriate message', async () => {
       const qb = makeQb();
-      qb.getMany.mockResolvedValueOnce([makeTask({ id: 'task-1', title: 'Vacuum' })]);
+      qb.getMany.mockResolvedValueOnce([
+        makeTask({ id: 'task-1', title: 'Vacuum' }),
+      ]);
       taskRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
       await service.sendDailyTelegramReminders();
@@ -176,8 +186,14 @@ describe('NotificationsService', () => {
     it('sends one message per distinct user and logs the total sent count', async () => {
       const qb = makeQb();
       qb.getMany.mockResolvedValueOnce([
-        makeTask({ id: 'task-1', assignee: makeUser({ id: 'user-1', telegramChatId: 'chat-1' }) }),
-        makeTask({ id: 'task-2', assignee: makeUser({ id: 'user-2', telegramChatId: 'chat-2' }) }),
+        makeTask({
+          id: 'task-1',
+          assignee: makeUser({ id: 'user-1', telegramChatId: 'chat-1' }),
+        }),
+        makeTask({
+          id: 'task-2',
+          assignee: makeUser({ id: 'user-2', telegramChatId: 'chat-2' }),
+        }),
       ]);
       taskRepo.createQueryBuilder.mockReturnValueOnce(qb);
 
