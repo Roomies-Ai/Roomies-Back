@@ -1,18 +1,39 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Patch,
+  Post,
   Delete,
   Body,
   Req,
   UnauthorizedException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { join, basename } from 'path';
+import { randomUUID } from 'crypto';
+import { existsSync, unlinkSync } from 'fs';
 import { UsersService } from './users.service';
 import { User } from '../models/user.entity';
+import { EnvironmentVariables } from '../config/environment-variables.type';
+
+const PROFILE_PICTURE_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly configService: ConfigService<EnvironmentVariables>,
+  ) {}
 
   @Get('me/telegram-token')
   async getTelegramToken(@Req() req: any) {
@@ -92,6 +113,100 @@ export class UsersController {
         })),
       })),
     };
+  }
+
+  @Post('me/picture')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: join(process.cwd(), 'uploads', 'profile-pictures'),
+        filename: (req, file, cb) => {
+          const ext = PROFILE_PICTURE_EXTENSION_BY_MIME_TYPE[file.mimetype] ?? '.jpg';
+          cb(null, `${randomUUID()}${ext}`);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (!PROFILE_PICTURE_EXTENSION_BY_MIME_TYPE[file.mimetype]) {
+          cb(new BadRequestException('Only JPEG, PNG, WEBP or GIF images are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadProfilePicture(@Req() req: any, @UploadedFile() file: Express.Multer.File) {
+    const userId = req['user']?.id || req['user']?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('User context not found from middleware');
+    }
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const backendUrl =
+      this.configService.get('BACKEND_URL', { infer: true }) ||
+      `http://localhost:${this.configService.get('PORT', { infer: true }) ?? 3000}`;
+    const profilePicture = `${backendUrl}/uploads/profile-pictures/${file.filename}`;
+
+    const user = await this.usersService.update(userId, { profilePicture });
+    return {
+      ...user,
+      preferredTaskTypes: (user.preferredTaskTypes || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      households: (user.households || []).map((h) => ({
+        id: h.id,
+        name: h.name,
+        taskTypes: (h.taskTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+        })),
+      })),
+    };
+  }
+
+  @Delete('me/picture')
+  async deleteProfilePicture(@Req() req: any) {
+    const userId = req['user']?.id || req['user']?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('User context not found from middleware');
+    }
+
+    const currentUser = await this.usersService.findUserById(userId);
+    this.deleteStoredProfilePictureFile(currentUser?.profilePicture);
+
+    const user = await this.usersService.update(userId, { profilePicture: null });
+    return {
+      ...user,
+      preferredTaskTypes: (user.preferredTaskTypes || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      })),
+      households: (user.households || []).map((h) => ({
+        id: h.id,
+        name: h.name,
+        taskTypes: (h.taskTypes || []).map((tt) => ({
+          id: tt.id,
+          name: tt.name,
+        })),
+      })),
+    };
+  }
+
+  private deleteStoredProfilePictureFile(profilePicture?: string | null) {
+    if (!profilePicture) return;
+
+    const filename = basename(profilePicture);
+    if (!/^[a-f0-9-]+\.(jpg|png|webp|gif)$/i.test(filename)) return;
+
+    const filePath = join(process.cwd(), 'uploads', 'profile-pictures', filename);
+    try {
+      if (existsSync(filePath)) unlinkSync(filePath);
+    } catch {
+      // best-effort cleanup; ignore failures
+    }
   }
 
   @Patch('me/password')

@@ -3,6 +3,7 @@
 /node_modules
 
 /postgres_data
+/uploads
 # Logs
 logs
 *.log

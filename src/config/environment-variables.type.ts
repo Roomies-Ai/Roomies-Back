@@ -1,5 +1,6 @@
 export type EnvironmentVariables = {
   PORT?: string;
+  BACKEND_URL?: string;
   NODE_ENV?: string;
   BOT_TOKEN?: string;
   WEBSITE_MANUAL_URL?: string;
