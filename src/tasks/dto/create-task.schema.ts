@@ -11,7 +11,7 @@ export const CreateTaskSchema = z.object({
   taskType: z.unknown().optional(),
   household: z.unknown().optional(),
   status: z.string().optional(),
-  recurrenceRule: RecurrenceRuleSchema.optional(),
+  recurrenceRule: RecurrenceRuleSchema.nullable().optional(),
 });
 
 export class CreateTaskDto extends createZodDto(CreateTaskSchema) {}
