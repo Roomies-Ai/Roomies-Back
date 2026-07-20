@@ -7,9 +7,14 @@ dotenv.config();
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: env.get('DATABASE_URL', { infer: true }),
-  // ssl: {
-  //   rejectUnauthorized: false,
-  // },
+  ...(env.get('DB_IS_SSL', { infer: true }) === 'true'
+    ? {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      }
+    : {}),
+
   synchronize: false,
   logging: true,
   entities: ['src/models/**/*.entity.ts'],
