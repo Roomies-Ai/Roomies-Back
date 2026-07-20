@@ -56,7 +56,7 @@ import { EnvironmentVariables } from './config/environment-variables.type';
             ? configService.get('DB_NAME', { infer: true })
             : undefined,
           entities: [User, Task, Household, Pet, TaskType],
-          synchronize: true, // Note: Set to false in production
+          synchronize: false,
           ...(configService.get('DB_IS_SSL', { infer: true }) === 'true'
             ? {
                 ssl: {

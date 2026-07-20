@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: .
+    container_name: roomies-backend
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env.production
+    volumes:
+      - /opt/roomies/uploads:/app/uploads
