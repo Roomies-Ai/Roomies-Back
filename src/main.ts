@@ -13,6 +13,7 @@ async function bootstrap() {
   const logger = new AppLogger('Bootstrap');
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.useLogger(logger);
+  app.setGlobalPrefix('api');
   app.use(compression());
   app.use(cookieParser());
   app.enableCors({
@@ -25,6 +26,6 @@ async function bootstrap() {
   app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
 
   const configService = app.get(ConfigService) as ConfigService<EnvironmentVariables>;
-  await app.listen(configService.get('PORT', { infer: true }) ?? 3000);
+  await app.listen(configService.get('PORT', { infer: true }) ?? 3000, '127.0.0.1');
 }
 bootstrap();
