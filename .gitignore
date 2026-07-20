@@ -38,5 +38,6 @@ lerna-debug.log*
 # misc
 /.env
 /.env.test
+/.env.production
 
 .agent
