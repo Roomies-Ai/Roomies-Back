@@ -37,7 +37,7 @@ export class AuthMiddleware implements NestMiddleware {
       const message = err instanceof Error ? err.message : 'Unknown error';
 
       console.error(
-        `AuthMiddleware: Token validation failed for ${req.method} ${req.url}: ${req.url}. meesage: ${message}`,
+        `AuthMiddleware: Token validation failed for ${req.method} ${req.url}: ${req.url}. message: ${message}`,
       );
 
       if (err instanceof jwt.TokenExpiredError) {
