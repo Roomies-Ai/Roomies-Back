@@ -9,7 +9,7 @@ import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   use(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
@@ -35,10 +35,17 @@ export class AuthMiddleware implements NestMiddleware {
       next();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
+
       console.error(
         `AuthMiddleware: Token validation failed for ${req.method} ${req.url}: ${req.url}. meesage: ${message}`,
       );
-      next();
+
+      if (err instanceof jwt.TokenExpiredError) {
+        console.log(
+          `AuthMiddleware: Token expired for ${req.method} ${req.url}: ${req.url}. meesage: ${message}`,
+        );
+      }
+
     }
   }
 }
