@@ -41,9 +41,7 @@ export class AuthMiddleware implements NestMiddleware {
       );
 
       if (err instanceof jwt.TokenExpiredError) {
-        console.log(
-          `AuthMiddleware: Token expired for ${req.method} ${req.url}: ${req.url}. meesage: ${message}`,
-        );
+        throw new UnauthorizedException();
       }
 
     }
