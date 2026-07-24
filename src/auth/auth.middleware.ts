@@ -41,7 +41,11 @@ export class AuthMiddleware implements NestMiddleware {
       );
 
       if (err instanceof jwt.TokenExpiredError) {
-        throw new UnauthorizedException();
+        throw new UnauthorizedException({
+          statusCode: 401,
+          code: 'TOKEN_EXPIRED',
+          message: 'Access token has expired',
+        });
       }
 
     }
