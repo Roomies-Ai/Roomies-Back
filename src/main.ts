@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import { AppLogger } from './logger/app-logger.service';
@@ -24,6 +25,15 @@ async function bootstrap() {
   const uploadsDir = join(process.cwd(), 'uploads');
   mkdirSync(join(uploadsDir, 'profile-pictures'), { recursive: true });
   app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+
+  const config = new DocumentBuilder()
+    .setTitle('Roomies API')
+    .setDescription('API documentation for the Roomies project')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
 
   const configService = app.get(ConfigService) as ConfigService<EnvironmentVariables>;
   await app.listen(configService.get('PORT', { infer: true }) ?? 3000, '127.0.0.1');
