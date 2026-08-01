@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { RecurrenceRuleSchema } from './recurrence-rule.schema';
-import { createZodDto } from './create-zod-dto';
+import { createZodDto } from 'nestjs-zod';
 
 export const CreateTaskSchema = z.object({
   title: z.string().min(1),
