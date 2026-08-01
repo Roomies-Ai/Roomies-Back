@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import { AppLogger } from './logger/app-logger.service';
@@ -33,7 +34,7 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, cleanupOpenApiDoc(document));
 
   const configService = app.get(ConfigService) as ConfigService<EnvironmentVariables>;
   await app.listen(configService.get('PORT', { infer: true }) ?? 3000, '127.0.0.1');
