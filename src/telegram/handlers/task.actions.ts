@@ -53,7 +53,7 @@ export const handleCancelTasks = async (ctx: any, userStates: Map<number, UserSt
   const chatId = ctx.from.id;
   const state = userStates.get(chatId);
   if (state) state.pendingTasks = [];
-  const manualUrl = env.get('WEBSITE_MANUAL_URL', { infer: true }) || 'https://roomies.com';
+  const manualUrl = 'https://roomies.cs.colman.ac.il';
   await ctx.editMessageText(
     `❌ *Action cancelled.*\n\nYou can always add tasks manually on our website:\n${manualUrl}`,
     { parse_mode: 'Markdown' }
